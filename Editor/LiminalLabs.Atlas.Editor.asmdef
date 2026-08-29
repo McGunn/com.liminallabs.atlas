@@ -1,6 +1,6 @@
 {
     "name": "LiminalLabs.Atlas.Editor",
-    "rootNamespace": "LiminalLabs.Atlas.Editor",
+    "rootNamespace": "LiminalLabs.Atlas",
     "references": [
         "LiminalLabs.Atlas",
         "LiminalLabs.Atlas.Compass",

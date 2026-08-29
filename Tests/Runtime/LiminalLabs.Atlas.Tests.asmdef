@@ -1,8 +1,10 @@
 {
     "name": "LiminalLabs.Atlas.Tests",
-    "rootNamespace": "LiminalLabs.Atlas.Tests",
+    "rootNamespace": "LiminalLabs.Atlas",
     "references": [
         "LiminalLabs.Atlas",
+        "LiminalLabs.Atlas.Compass",
+        "LiminalLabs.Atlas.Screen",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

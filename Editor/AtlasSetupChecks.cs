@@ -65,11 +65,27 @@ namespace LiminalLabs.Atlas.Editor
             }
             else if (presenters.Count > 0 && registries.Length > 0)
             {
-                // Presenters are wired in code, so one sitting in a scene with nothing
-                // calling AddProjection is the likeliest way to see nothing at all.
-                report.Warn($"{presenters.Count} presenter(s) present - check something calls AddProjection",
-                    "registry.AddProjection(new BearingProjection(), bar). A presenter nobody " +
-                    "registered draws nothing and reports nothing.");
+                // Presenters register themselves now, so the only remaining way to have a
+                // presenter draw nothing is to have switched that off and then not wired
+                // it - which is worth naming rather than warning about every scene.
+                int unwired = 0;
+                foreach (MonoBehaviour presenter in presenters)
+                {
+                    var serialized = new SerializedObject(presenter);
+                    SerializedProperty self = serialized.FindProperty("selfRegister");
+                    if (self != null && !self.boolValue) unwired++;
+                }
+
+                if (unwired > 0)
+                {
+                    report.Warn($"{unwired} presenter(s) have Self Register switched off",
+                        "Those draw nothing unless something calls " +
+                        "registry.AddProjection(new BearingProjection(), presenter) for them.");
+                }
+                else
+                {
+                    report.Pass($"{presenters.Count} presenter(s) register themselves");
+                }
             }
 
             if (registries.Length == 1 && presenters.Count > 0 && markers.Count > 0)

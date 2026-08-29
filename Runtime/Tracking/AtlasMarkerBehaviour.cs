@@ -96,20 +96,38 @@ namespace LiminalLabs.Atlas
 
         private AtlasRegistry Resolve()
         {
-            if (registry != null) return registry.Registry;
+            if (registry == null) registry = AtlasRegistryBehaviour.ResolveFor(this);
+            return registry != null ? registry.Registry : null;
+        }
 
-            // Parents first: in split-screen each player's markers hang under that
-            // player's rig, and the nearest registry is the right one.
-            AtlasRegistryBehaviour found = GetComponentInParent<AtlasRegistryBehaviour>(true);
+        /// <summary>
+        /// Draws the marker in the scene view.
+        ///
+        /// Worth the fifteen lines: a marker is an invisible component on an object that
+        /// often has no renderer of its own, and without a gizmo the only way to find out
+        /// whether one is where you think it is, is to press play.
+        /// </summary>
+        private void OnDrawGizmos()
+        {
+            Vector3 at = Position;
 
-            // FindAny rather than FindFirst: First is deprecated for depending on
-            // instance-id ordering, and "the first one" was never the meaningful answer
-            // anyway - a scene with two registries wants the parent search to have found
-            // the right one already.
-            if (found == null) found = FindAnyObjectByType<AtlasRegistryBehaviour>(FindObjectsInactive.Include);
+            Gizmos.color = tracked ? tint : new Color(tint.r, tint.g, tint.b, 0.25f);
+            Gizmos.DrawWireSphere(at, 0.35f);
 
-            registry = found;
-            return found != null ? found.Registry : null;
+            // The anchor line, when the marker is not where its object is - otherwise the
+            // gizmo sits somewhere unexplained.
+            if (anchor != null && anchor != transform)
+            {
+                Gizmos.color = new Color(tint.r, tint.g, tint.b, 0.4f);
+                Gizmos.DrawLine(transform.position, at);
+            }
+
+            if (maxDistance <= 0f) return;
+
+            // The cull radius, so "why does it vanish over there" is answerable without
+            // reading the inspector.
+            Gizmos.color = new Color(tint.r, tint.g, tint.b, 0.12f);
+            Gizmos.DrawWireSphere(at, maxDistance);
         }
     }
 }

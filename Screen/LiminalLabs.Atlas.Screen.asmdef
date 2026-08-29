@@ -1,6 +1,6 @@
 {
-    "name": "LiminalLabs.Atlas.SampleCore",
-    "rootNamespace": "LiminalLabs.Atlas.SampleCore",
+    "name": "LiminalLabs.Atlas.Screen",
+    "rootNamespace": "LiminalLabs.Atlas",
     "references": [
         "LiminalLabs.Atlas"
     ],

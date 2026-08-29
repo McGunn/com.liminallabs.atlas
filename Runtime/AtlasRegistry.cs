@@ -138,10 +138,23 @@ namespace LiminalLabs.Atlas
 
         // ---- projections ----------------------------------------------------
 
-        public void AddProjection(IAtlasProjection projection, IAtlasPresenter presenter)
+        /// <summary>
+        /// Registers a projection and the presenter that draws it.
+        ///
+        /// Refuses a presenter that is already registered. Two entries for one presenter
+        /// means it is handed two solve lists per frame and the second overwrites the
+        /// first's pool state, which shows up as half the markers flickering - a symptom
+        /// nobody traces back to a duplicate registration.
+        /// </summary>
+        public bool AddProjection(IAtlasProjection projection, IAtlasPresenter presenter)
         {
-            if (projection == null || presenter == null) return;
+            if (projection == null || presenter == null) return false;
+
+            for (int i = 0; i < outputs.Count; i++)
+                if (ReferenceEquals(outputs[i].Presenter, presenter)) return false;
+
             outputs.Add(new Output(projection, presenter));
+            return true;
         }
 
         public bool RemoveProjection(IAtlasPresenter presenter)
