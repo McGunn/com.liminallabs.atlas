@@ -2,7 +2,10 @@
     "name": "LiminalLabs.Atlas.Editor",
     "rootNamespace": "LiminalLabs.Atlas.Editor",
     "references": [
-        "LiminalLabs.Atlas"
+        "LiminalLabs.Atlas",
+        "LiminalLabs.Atlas.Compass",
+        "LiminalLabs.Atlas.Screen",
+        "LiminalLabs.Core.Editor"
     ],
     "includePlatforms": [
         "Editor"
@@ -12,7 +15,15 @@
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
-    "defineConstraints": [],
-    "versionDefines": [],
+    "defineConstraints": [
+        "LIMINAL_CORE_EDITOR"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.liminallabs.core",
+            "expression": "0.2.0",
+            "define": "LIMINAL_CORE_EDITOR"
+        }
+    ],
     "noEngineReferences": false
 }

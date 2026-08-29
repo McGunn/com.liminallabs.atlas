@@ -13,7 +13,7 @@
   "samples": [
     {
       "displayName": "Atlas M0",
-      "description": "Three markers registered three different ways, on a compass bar and as screen indicators, from one registry. Window > Liminal Labs > Atlas > Build M0 Sample Scene.",
+      "description": "Three markers registered three different ways, on a compass bar and as screen indicators, from one registry. Import this sample first - the scene builder lives in Samples~, so its menu item does not exist until you do. Then: Window > Liminal Labs > Atlas > Build M0 Sample Scene.",
       "path": "Samples~/AtlasM0"
     }
   ]

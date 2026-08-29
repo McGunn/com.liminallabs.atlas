@@ -23,7 +23,11 @@ from the same solve - including the case where it is behind you.
 - `IAtlasIconProvider` and a sprite-array implementation, so icon ids never become asset
   references.
 - Optional `LiminalLabs.Atlas.Console` addon, gated on com.liminallabs.core.
-- `Samples~/AtlasM0` and its scene builder.
+- `Samples~/AtlasM0` and its scene builder. Import the sample before looking for its
+  menu item - Unity does not compile `Samples~` until then.
+- Setup checks in the Setup and Validation window, per the house rule that anything
+  failing silently at runtime must surface there. Atlas has several ways to be wired
+  almost correctly and draw nothing.
 
 ### Verified
 

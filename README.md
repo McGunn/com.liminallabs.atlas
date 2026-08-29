@@ -104,7 +104,14 @@ one survives.
 
 ## The sample
 
-**Window → Liminal Labs → Atlas → Build M0 Sample Scene.**
+**Import it first.** Package Manager → Liminal Atlas → Samples → **Atlas M0** → Import.
+
+That step is not optional and it is not obvious: the scene builder lives in `Samples~`,
+which Unity does not compile until the sample is imported — so **the menu item does not
+exist until you import**, and looking for it beforehand finds nothing. That is UPM
+behaviour rather than a fault in the package, but it catches everyone once.
+
+Then: **Window → Liminal Labs → Atlas → Build M0 Sample Scene.**
 
 Hold right mouse and turn on the spot. Three markers, one per entry point. Watch the
 orbiting one pass behind you — which end of the bar it leaves, and which screen edge its
