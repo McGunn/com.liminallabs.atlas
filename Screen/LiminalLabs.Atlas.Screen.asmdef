@@ -1,0 +1,16 @@
+{
+    "name": "LiminalLabs.Atlas.Screen",
+    "rootNamespace": "LiminalLabs.Atlas",
+    "references": [
+        "LiminalLabs.Atlas"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

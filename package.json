@@ -1,0 +1,20 @@
+{
+  "name": "com.liminallabs.atlas",
+  "version": "0.1.0",
+  "displayName": "Liminal Atlas",
+  "description": "Knowing where things are: compass bearing and on-screen indicators from one registration, over a registry that already models map spaces. M0 - the registry, the marker vocabulary, the space identity, two projections and two presenters. Namespace LiminalLabs.Atlas.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Liminal Labs"
+  },
+  "dependencies": {
+    "com.unity.ugui": "2.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Atlas M0",
+      "description": "Three markers registered three different ways, on a compass bar and as screen indicators, from one registry. Window > Liminal Labs > Atlas > Build M0 Sample Scene.",
+      "path": "Samples~/AtlasM0"
+    }
+  ]
+}

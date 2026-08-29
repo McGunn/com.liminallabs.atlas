@@ -1,0 +1,25 @@
+{
+    "name": "LiminalLabs.Atlas.Console",
+    "rootNamespace": "LiminalLabs.Atlas.Console",
+    "references": [
+        "LiminalLabs.Atlas",
+        "LiminalLabs.Core.Console"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LIMINAL_CONSOLE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.liminallabs.core",
+            "expression": "0.2.0",
+            "define": "LIMINAL_CONSOLE"
+        }
+    ],
+    "noEngineReferences": false
+}

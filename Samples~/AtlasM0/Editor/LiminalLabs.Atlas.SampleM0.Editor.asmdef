@@ -1,0 +1,21 @@
+{
+    "name": "LiminalLabs.Atlas.SampleM0.Editor",
+    "rootNamespace": "LiminalLabs.Atlas.SampleM0.Editor",
+    "references": [
+        "LiminalLabs.Atlas",
+        "LiminalLabs.Atlas.Compass",
+        "LiminalLabs.Atlas.Screen",
+        "LiminalLabs.Atlas.SampleM0"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
