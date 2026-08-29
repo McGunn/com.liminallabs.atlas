@@ -1,11 +1,9 @@
 {
-    "name": "LiminalLabs.Atlas.SampleM0.Editor",
-    "rootNamespace": "LiminalLabs.Atlas.SampleM0.Editor",
+    "name": "LiminalLabs.Atlas.SampleCore.Editor",
+    "rootNamespace": "LiminalLabs.Atlas.SampleCore.Editor",
     "references": [
         "LiminalLabs.Atlas",
-        "LiminalLabs.Atlas.Compass",
-        "LiminalLabs.Atlas.Screen",
-        "LiminalLabs.Atlas.SampleM0"
+        "LiminalLabs.Atlas.SampleCore"
     ],
     "includePlatforms": [
         "Editor"

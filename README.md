@@ -1,11 +1,24 @@
-# Liminal Atlas
+# Liminal Labs Atlas
 
-Knowing where things are. Register an object once; it appears on the compass **and** as
-an on-screen indicator, from one solve.
+Knowing where things are. Register an object once; every installed view draws it, from one
+solve.
 
-**M0.** The registry, the marker vocabulary, the space identity, two projections and two
-presenters. Not the map — that is M1 and M2, and building it before the registry is
-proven is how a map gets rewritten.
+**This package is the core and draws nothing.** It owns the registry, the marker
+vocabulary, the space identity and the solve — the part every view shares. The views are
+separate packages:
+
+| | |
+| --- | --- |
+| **Liminal Labs Atlas Compass** | a bearing bar |
+| **Liminal Labs Atlas On-Screen** | floating indicators, edge clamping |
+| **Liminal Labs Atlas Maps** | minimap and world map — M1, not yet built |
+
+Take one, take all of them, or take the core and draw your own. None of the view packages
+knows the others exist, which is not a convention but a structural fact: they cannot name
+each other, because they do not depend on each other.
+
+**M0.** Registry, markers, spaces, the solve, and the first two views. Not the map — that
+is M1 and M2, and building it before the registry is proven is how a map gets rewritten.
 
 ## The claim M0 has to survive
 
@@ -69,16 +82,34 @@ keep the registry.
 
 | | |
 | --- | --- |
-| `Runtime/` | `LiminalLabs.Atlas` — registry, markers, spaces, solve, projections. **References nothing.** |
-| `Compass/` | `LiminalLabs.Atlas.Compass` — the bar |
-| `Screen/` | `LiminalLabs.Atlas.Screen` — floating icons, edge clamping |
-| `Console/` | `LiminalLabs.Atlas.Console` — optional; needs `com.liminallabs.core` |
-| `Tests/` | §7 acceptance suite |
-| `Samples~/AtlasM0/` | three markers, three entry points, two views |
+| `Runtime/` | `LiminalLabs.Atlas` — registry, markers, spaces, solve, seams. **References nothing.** |
+| `Console/` | optional; needs `com.liminallabs.core` |
+| `Editor/` | Setup and Validation checks; optional, needs core |
+| `Tests/` | the maths, registry and space suites |
+| `Samples~/AtlasCore/` | three entry points, no presenter, the solve printed on screen |
 
-`Compass` and `Screen` each reference core and **not each other**. The moment one
-references the other, take-only-what-you-use is gone; test 20 asserts it, by reflecting
-over the assemblies rather than trusting the asmdef.
+A projection lives with the presenter that consumes it, in the view package — they are the
+two halves of one output, and nothing but the compass needs world-to-bearing.
+
+## Why the views are separate packages
+
+The original design argued for one package with several assemblies: separate packages
+would each need the shared vocabulary as a dependency, and would only ever version
+together.
+
+Half of that is right and stays right — **the vocabulary must never fork.** `AtlasMarker`,
+`AtlasSolve`, `AtlasSpaceId` and the registry are one thing, in this package, and every
+view depends on it.
+
+The other half does not survive contact with shipping them. Each view wants its own demo,
+and Package Manager gives a package one sample list. Each wants its own README as its
+landing page, its own version history, and its own changelog. A project that wants a
+compass should not install a map system. And "an unreferenced assembly costs nothing at
+runtime" is true and beside the point when the question is what someone installs.
+
+The property the one-package argument was protecting — that the views cannot reference
+each other — comes out **stronger**, not weaker. It used to be a reflection assertion in a
+test. Now it is structural: they have no dependency through which to name each other.
 
 ## Spaces, in M0
 
@@ -104,22 +135,25 @@ one survives.
 
 ## The sample
 
-**Import it first.** Package Manager → Liminal Atlas → Samples → **Atlas M0** → Import.
+**Import it first.** Package Manager → Liminal Labs Atlas → Samples → **Atlas Core** →
+Import. Unity does not compile `Samples~` until the sample is imported, so the menu item
+does not exist before you do — that is UPM behaviour rather than a fault, but it catches
+everyone once.
 
-That step is not optional and it is not obvious: the scene builder lives in `Samples~`,
-which Unity does not compile until the sample is imported — so **the menu item does not
-exist until you import**, and looking for it beforehand finds nothing. That is UPM
-behaviour rather than a fault in the package, but it catches everyone once.
+Then **Window → Liminal Labs → Atlas → Build Core Sample Scene**.
 
-Then: **Window → Liminal Labs → Atlas → Build M0 Sample Scene.**
+This sample has **no presenter**, on purpose. It registers three markers through all three
+entry points and prints the raw solve — bearing, distance, behind-or-not — in plain IMGUI.
+A package that draws nothing should be demonstrable without installing one that does, and
+what it demonstrates is the claim underneath everything: those numbers are computed once,
+from plain values, before anything draws.
 
-Hold right mouse and turn on the spot. Three markers, one per entry point. Watch the
-orbiting one pass behind you — which end of the bar it leaves, and which screen edge its
-icon pins to.
+Install Atlas Compass or Atlas On-Screen and the same registrations draw themselves.
+Nothing in this sample changes.
 
 ## Not built
 
-The map projection, minimap and world map (M1–M2). Pan, zoom, importance LOD, legend and
+The map projection, minimap and world map — **Liminal Labs Atlas Maps**, M1–M2. Pan, zoom, importance LOD, legend and
 filters (M2) — `Importance` exists on the marker and is unused. Baking (M3). Discovery and
 fog (M4). Save, content and TMP bridges, and the Atlas Board (M5). Direction labels,
 distance text and fade curves are M1 polish; `Fade` is computed and applied as alpha.
@@ -128,5 +162,5 @@ No Addressables, in any milestone.
 
 ## Open questions
 
-`docs/atlas-open-questions.md`. Eleven, none blocking. **Q5 is the one to read** — the
+`docs/atlas-open-questions.md`. Twelve, none blocking. **Q5 is the one to read** — the
 space id representation is the decision that becomes saved data.

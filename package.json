@@ -1,20 +1,18 @@
 {
   "name": "com.liminallabs.atlas",
   "version": "0.1.0",
-  "displayName": "Liminal Atlas",
-  "description": "Knowing where things are: compass bearing and on-screen indicators from one registration, over a registry that already models map spaces. M0 - the registry, the marker vocabulary, the space identity, two projections and two presenters. Namespace LiminalLabs.Atlas.",
+  "displayName": "Liminal Labs Atlas",
+  "description": "The Liminal Labs Atlas core: one registry, one solve, and the vocabulary every view shares - markers, spaces, viewers, projections and presenter seams. Draws nothing itself; add Atlas Compass, Atlas On-Screen or Atlas Maps for that. Namespace LiminalLabs.Atlas.",
   "unity": "6000.0",
   "author": {
     "name": "Liminal Labs"
   },
-  "dependencies": {
-    "com.unity.ugui": "2.0.0"
-  },
+  "dependencies": {},
   "samples": [
     {
-      "displayName": "Atlas M0",
-      "description": "Three markers registered three different ways, on a compass bar and as screen indicators, from one registry. Import this sample first - the scene builder lives in Samples~, so its menu item does not exist until you do. Then: Window > Liminal Labs > Atlas > Build M0 Sample Scene.",
-      "path": "Samples~/AtlasM0"
+      "displayName": "Atlas Core",
+      "description": "All three entry points tracked at once, with the raw solve printed on screen - no presenter, so it shows what the registry knows rather than how it looks. Import, then Window > Liminal Labs > Atlas > Build Core Sample Scene.",
+      "path": "Samples~/AtlasCore"
     }
   ]
 }

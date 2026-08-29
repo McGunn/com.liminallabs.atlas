@@ -3,8 +3,6 @@
     "rootNamespace": "LiminalLabs.Atlas.Tests",
     "references": [
         "LiminalLabs.Atlas",
-        "LiminalLabs.Atlas.Compass",
-        "LiminalLabs.Atlas.Screen",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

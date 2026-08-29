@@ -17,14 +17,15 @@ from the same solve - including the case where it is behind you.
 - `IAtlasTrackable`, `AtlasMarker`, `AtlasMarkerKind`, `AtlasHandle` and all three entry
   points: a component, an interface, and a position delegate for things with no
   GameObject.
-- `BearingProjection`, `ScreenProjection`.
-- `BarPresenter` (Compass) and `ScreenPresenter` (Screen), each in its own assembly,
-  neither referencing the other, both drawing from fixed pools built at Awake.
+- The presenter and projection seams. The views themselves ship as separate packages:
+  `com.liminallabs.atlas.compass` and `com.liminallabs.atlas.onscreen`, with Maps at M1.
+  Neither can reference the other, structurally rather than by convention.
 - `IAtlasIconProvider` and a sprite-array implementation, so icon ids never become asset
   references.
 - Optional `LiminalLabs.Atlas.Console` addon, gated on com.liminallabs.core.
-- `Samples~/AtlasM0` and its scene builder. Import the sample before looking for its
-  menu item - Unity does not compile `Samples~` until then.
+- `Samples~/AtlasCore` - three entry points, no presenter, the solve printed on screen,
+  so a package that draws nothing is still demonstrable on its own. Import the sample
+  before looking for its menu item; Unity does not compile `Samples~` until then.
 - Setup checks in the Setup and Validation window, per the house rule that anything
   failing silently at runtime must surface there. Atlas has several ways to be wired
   almost correctly and draw nothing.
