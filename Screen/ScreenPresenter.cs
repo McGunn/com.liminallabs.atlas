@@ -80,7 +80,6 @@ namespace LiminalLabs.Atlas
         private RectTransform area;
         private Entry[] pool;
         private TMP_FontAsset font;
-        private bool fontResolved;
 
         public IAtlasIconProvider IconProvider { get; set; }
 
@@ -156,6 +155,10 @@ namespace LiminalLabs.Atlas
             area = (RectTransform)transform;
             if (IconProvider == null) IconProvider = icons;
 
+            // Resolved before the pool is built: if TMP cannot draw, the labels are
+            // never created rather than created broken.
+            if (!TryResolveFont(out font)) showDistanceLabels = false;
+
             BuildPool();
         }
 
@@ -200,33 +203,62 @@ namespace LiminalLabs.Atlas
         }
 
         /// <summary>
-        /// A font for the labels without anyone having to assign one.
+        /// A font for the labels, or false when this project cannot render TMP text at all.
         ///
-        /// TMP draws nothing at all when it has no default font asset, which is a fresh
-        /// project's normal state and reads as broken labels rather than as a setting
-        /// nobody filled in. Core already vendors typefaces for this kind of reason.
+        /// <c>TMP_Settings.defaultFontAsset</c> dereferences its instance without checking
+        /// it, so when TMP Essential Resources have not been imported it does not return
+        /// null - it throws. From <c>Awake</c>, that killed the whole presenter and took
+        /// every marker with it, which is a spectacular price for a missing distance label.
+        ///
+        /// Converting core's vendored typeface is no escape either: the material wants
+        /// TextMeshPro's SDF shader, which arrives with the same import. So when the
+        /// settings are absent the labels are not built at all, rather than built and left
+        /// invisible - a label nobody can see is harder to diagnose than one that was never
+        /// there and said why.
         /// </summary>
-        private TMP_FontAsset Font()
+        private bool TryResolveFont(out TMP_FontAsset resolved)
         {
-            if (fontResolved) return font;
-            fontResolved = true;
+            resolved = null;
 
-            font = TMP_Settings.defaultFontAsset;
-            if (font != null) return font;
+            TMP_Settings settings;
+            try
+            {
+                settings = TMP_Settings.instance;
+            }
+            catch
+            {
+                settings = null;
+            }
 
+            if (settings == null)
+            {
+                Debug.LogWarning(
+                    $"[Atlas] '{name}' is turning distance labels off: this project has no " +
+                    "TMP Settings, so TextMeshPro cannot draw. Import them once from " +
+                    "Window > TextMeshPro > Import TMP Essential Resources. Markers, " +
+                    "bearings and everything else are unaffected.", this);
+                return false;
+            }
+
+            resolved = TMP_Settings.defaultFontAsset;
+            if (resolved != null) return true;
+
+            // No project default, but TMP itself works - so core's vendored face is a
+            // genuine answer here rather than a guess.
             Font fallback = LiminalFonts.Get(LiminalFontRole.Sans);
-            if (fallback != null) font = TMP_FontAsset.CreateFontAsset(fallback);
+            if (fallback != null) resolved = TMP_FontAsset.CreateFontAsset(fallback);
 
-            if (font == null)
+            if (resolved == null)
             {
                 Debug.LogWarning(
                     $"[Atlas] '{name}' has no TMP font asset and core's fallback could not " +
-                    "be loaded, so indicator labels will not draw. Assign a default font " +
-                    "under Project Settings > TextMeshPro.", this);
+                    "be loaded, so labels are off. Assign a default under " +
+                    "Project Settings > TextMeshPro.", this);
             }
 
-            return font;
+            return resolved != null;
         }
+
 
         private TextMeshProUGUI BuildLabel(RectTransform parent)
         {
@@ -241,7 +273,7 @@ namespace LiminalLabs.Atlas
             rect.anchoredPosition = new Vector2(0f, labelOffsetY);
 
             var text = go.GetComponent<TextMeshProUGUI>();
-            text.font = Font();
+            text.font = font;
             text.fontSize = labelSize;
             text.alignment = TextAlignmentOptions.Center;
             text.raycastTarget = false;

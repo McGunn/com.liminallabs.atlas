@@ -137,6 +137,23 @@ rather than a refactor.
 
 ---
 
+## Text needs one import
+
+The compass letters and the distance labels are TextMeshPro. TMP itself ships inside
+`com.unity.ugui`, so nothing extra is installed — but its settings asset and SDF shaders
+arrive through **Window → TextMeshPro → Import TMP Essential Resources**, which a fresh
+project has not run.
+
+Without it, labels switch themselves off and say so once. Markers, bearings, the
+behind-you case and everything else are unaffected. Setup and Validation names it with a
+button.
+
+Worth knowing why it is not softer: `TMP_Settings.defaultFontAsset` dereferences a null
+instance rather than returning null, so it *throws*. Converting a raw TTF is no escape
+either — the material wants a shader that arrives with the same import. So the labels are
+never built rather than built invisible, because a label nobody can see is harder to
+diagnose than one that was never there and said why.
+
 ## Setup and Validation
 
 Atlas has an unusual number of ways to be wired almost correctly and draw nothing, and

@@ -34,6 +34,15 @@ thing that lets two views quietly disagree about what is behind you.
 - **`Discovery`, `FastTravel` and `Event` marker kinds.**
 - `hideWhenBehind` and `hideWhenOffScreen` on the screen presenter, both off.
 
+### Fixed
+
+- **A missing TMP Essential Resources import crashed the presenters.**
+  `TMP_Settings.defaultFontAsset` dereferences a null instance rather than returning
+  null, so it threw from `Awake` — taking the whole presenter with it, and every marker
+  with that. A fresh project has not run that import, so this was the default experience.
+  Labels now switch themselves off and say which menu item to click; a Setup and
+  Validation row says the same before anything is played.
+
 ### Changed
 
 - **`IAtlasPresenter.Present` now takes the frame's viewer.** Cardinal letters are
