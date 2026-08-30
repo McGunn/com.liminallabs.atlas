@@ -38,7 +38,6 @@ namespace LiminalLabs.Atlas.SampleM0
         [SerializeField] private float lookSensitivity = 3f;
 
         [Header("Readout")]
-        [SerializeField] private KeyCode readoutKey = KeyCode.Tab;
         [SerializeField] private bool readoutVisible = true;
 
         private Vector3 driftingPosition = new Vector3(-25f, 1f, 12f);
@@ -117,7 +116,7 @@ namespace LiminalLabs.Atlas.SampleM0
 
         private void Update()
         {
-            if (Input.GetKeyDown(readoutKey)) readoutVisible = !readoutVisible;
+            if (AtlasM0Input.ReadoutPressed) readoutVisible = !readoutVisible;
 
             Look();
             Orbit();
@@ -134,10 +133,11 @@ namespace LiminalLabs.Atlas.SampleM0
         /// </summary>
         private void Look()
         {
-            if (!Input.GetMouseButton(1)) return;
+            if (!AtlasM0Input.LookHeld) return;
 
-            yaw += Input.GetAxis("Mouse X") * lookSensitivity;
-            pitch = Mathf.Clamp(pitch - Input.GetAxis("Mouse Y") * lookSensitivity, -80f, 80f);
+            Vector2 look = AtlasM0Input.LookDelta * lookSensitivity;
+            yaw += look.x;
+            pitch = Mathf.Clamp(pitch - look.y, -80f, 80f);
 
             Camera camera = registry.ViewerCamera;
             if (camera != null) camera.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
@@ -165,7 +165,7 @@ namespace LiminalLabs.Atlas.SampleM0
             GUI.Label(new Rect(12f, 12f, 820f, 20f),
                 "Hold right mouse to look.  Three markers, three entry points, two views.");
             GUI.Label(new Rect(12f, 30f, 820f, 20f),
-                $"Watch the orbiting marker pass behind you.  [{readoutKey}] readout.");
+                "Watch the orbiting marker pass behind you.  [Tab] readout.");
 
             if (!readoutVisible || registry == null) return;
 
