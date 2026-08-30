@@ -8,6 +8,7 @@
     "name": "Liminal Labs"
   },
   "dependencies": {
+    "com.liminallabs.core": "0.4.0",
     "com.unity.ugui": "2.0.0"
   },
   "samples": [

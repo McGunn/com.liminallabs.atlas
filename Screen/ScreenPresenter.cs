@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using LiminalLabs.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -202,12 +203,26 @@ namespace LiminalLabs.Atlas
                 // a marker that never registered, or a camera facing the wrong way. The
                 // system's whole promise is that a registered marker in view is visible;
                 // an unassigned icon list is a styling gap, not grounds to break it.
-                entry.Image.sprite = IconProvider != null
+                Sprite sprite = IconProvider != null
                     ? IconProvider.Resolve(solve.Marker.IconId)
                     : null;
-                entry.Image.enabled = true;
 
                 Color tint = solve.Marker.Tint;
+
+                if (sprite == null)
+                {
+                    // Core's shared placeholder, in the editor and development builds.
+                    // Drawn in its own colour rather than the marker's: a placeholder
+                    // tinted cyan because the marker is cyan reads as a deliberate icon,
+                    // which is the one thing it must never do. Null in a release build,
+                    // where the blank quad below is the right answer instead.
+                    sprite = LiminalPlaceholder.Missing;
+                    if (sprite != null) tint = LiminalPlaceholder.Tint;
+                }
+
+                entry.Image.sprite = sprite;
+                entry.Image.enabled = true;
+
                 tint.a *= solve.Fade;
                 entry.Image.color = tint;
 

@@ -20,6 +20,18 @@
   the compass and a star on screen. Off-screen indicators get an arrow sprite, and the
   orbiting marker gets a label, tint and icon instead of defaults.
 - Demo input reads through `AtlasM0Input`, which works on either input backend.
+- An unassigned icon now draws core's `LiminalPlaceholder` — a red question mark — in the
+  editor and development builds, in its own colour rather than the marker's. Release
+  builds keep the tinted blank, so nothing red reaches a player.
+
+### Changed
+
+- **`Compass` and `Screen` now require `com.liminallabs.core` (0.4.0).** `Runtime/` still
+  references nothing; the line moved to "the half that draws may know about the house's
+  shared assets, the half that solves may not."
+- The test assembly no longer references `UnityEditor.TestRunner`. It declares no platform
+  restriction, so that reference would have broken a player test build — the exact class of
+  failure the assembly was written to avoid.
 
 ## [0.1.0] — M0, the falsifiable core
 

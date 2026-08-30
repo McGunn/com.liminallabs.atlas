@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using LiminalLabs.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -28,6 +29,30 @@ namespace LiminalLabs.Atlas.Tests
             foreach (GameObject go in spawned)
                 if (go != null) Object.DestroyImmediate(go);
             spawned.Clear();
+
+            foreach (Object o in temporary)
+                if (o != null) Object.DestroyImmediate(o);
+            temporary.Clear();
+        }
+
+        private readonly List<Object> temporary = new List<Object>();
+
+        /// <summary>An icon provider that answers every id with one sprite.</summary>
+        private sealed class StubIcons : IAtlasIconProvider
+        {
+            public Sprite Sprite;
+            public Sprite Resolve(int iconId) => Sprite;
+        }
+
+        /// <summary>A real Sprite with no asset behind it, so the normal draw path can be
+        /// exercised without shipping a texture in the test assembly.</summary>
+        private Sprite MakeSprite()
+        {
+            var texture = new Texture2D(4, 4);
+            Sprite sprite = Sprite.Create(texture, new Rect(0f, 0f, 4f, 4f), new Vector2(0.5f, 0.5f));
+            temporary.Add(texture);
+            temporary.Add(sprite);
+            return sprite;
         }
 
         private sealed class Fake : IAtlasTrackable
@@ -161,6 +186,11 @@ namespace LiminalLabs.Atlas.Tests
             var registry = new AtlasRegistry();
             registry.AddProjection(new BearingProjection(), bar);
 
+            // With an icon assigned: the tint belongs to the marker. Without one the
+            // placeholder takes over and deliberately ignores it, which the next test
+            // covers - so this one has to supply an icon to be about tinting at all.
+            bar.IconProvider = new StubIcons { Sprite = MakeSprite() };
+
             var fake = new Fake { At = new Vector3(0f, 0f, 20f) };
             fake.Mark.Tint = Color.magenta;
             registry.Register(fake);
@@ -176,6 +206,51 @@ namespace LiminalLabs.Atlas.Tests
             }
 
             Assert.Fail("no drawn image to check the tint on");
+        }
+
+        /// <summary>
+        /// A marker with no icon gets core's placeholder, in its own colour.
+        ///
+        /// The colour is the point. A placeholder tinted cyan because the marker is cyan
+        /// reads as a deliberate icon, which is the one thing a placeholder must never do
+        /// - so the marker's tint is dropped and only its fade is kept.
+        ///
+        /// Written to hold in a release build too, where <see cref="LiminalPlaceholder"/>
+        /// returns null on purpose and the blank quad is the correct answer.
+        /// </summary>
+        [Test]
+        public void AMarkerWithNoIconGetsThePlaceholder()
+        {
+            BarPresenter bar = Spawn<BarPresenter>();
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+
+            var fake = new Fake { At = new Vector3(0f, 0f, 20f) };
+            fake.Mark.Tint = Color.cyan;
+            registry.Register(fake);
+            registry.Tick(Viewer());
+
+            Sprite placeholder = LiminalPlaceholder.Missing;
+
+            foreach (Image image in bar.GetComponentsInChildren<Image>(false))
+            {
+                if (!image.enabled) continue;
+
+                if (placeholder != null)
+                {
+                    Assert.AreSame(placeholder, image.sprite, "an unassigned icon announces itself");
+                    Assert.AreEqual(LiminalPlaceholder.Tint.r, image.color.r, 0.001f,
+                        "and does so in its own colour, not the marker's");
+                }
+                else
+                {
+                    Assert.IsNull(image.sprite, "release builds fall back to the blank quad");
+                }
+                return;
+            }
+
+            Assert.Fail("nothing was drawn");
         }
 
         // ---- 20: the milestone ----------------------------------------------

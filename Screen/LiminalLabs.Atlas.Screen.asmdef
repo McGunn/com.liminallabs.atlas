@@ -2,7 +2,8 @@
     "name": "LiminalLabs.Atlas.Screen",
     "rootNamespace": "LiminalLabs.Atlas",
     "references": [
-        "LiminalLabs.Atlas"
+        "LiminalLabs.Atlas",
+        "LiminalLabs.Core"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

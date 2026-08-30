@@ -83,8 +83,8 @@ registry.
 | | |
 | --- | --- |
 | `Runtime/` | `LiminalLabs.Atlas` — registry, markers, spaces, solve, seams. **References nothing.** |
-| `Compass/` | `LiminalLabs.Atlas.Compass` — `BearingProjection` + `BarPresenter` |
-| `Screen/` | `LiminalLabs.Atlas.Screen` — `ScreenProjection` + `ScreenPresenter` |
+| `Compass/` | `LiminalLabs.Atlas.Compass` — `BearingProjection` + `BarPresenter`. Needs core. |
+| `Screen/` | `LiminalLabs.Atlas.Screen` — `ScreenProjection` + `ScreenPresenter`. Needs core. |
 | `Console/` | optional — needs `com.liminallabs.core` |
 | `Editor/` | Setup and Validation checks; optional, needs core |
 | `Tests/` | the §7 acceptance suite |
@@ -93,11 +93,16 @@ registry.
 A projection lives with the presenter that consumes it — they are the two halves of one
 output, and nothing but the compass needs world-to-bearing.
 
-**`Compass` and `Screen` reference the core and not each other.** A test asserts it by
-reflecting over the built assemblies rather than by reading the asmdefs, because a
-reference added in a hurry is invisible in review and would break nothing else. The moment
-one view can name the other, take-only-what-you-use is gone and the two can quietly
-diverge on what "behind" means.
+**`Compass` and `Screen` reference `LiminalLabs.Atlas` and not each other.** A test
+asserts it by reflecting over the built assemblies rather than by reading the asmdefs,
+because a reference added in a hurry is invisible in review and would break nothing else.
+The moment one view can name the other, take-only-what-you-use is gone and the two can
+quietly diverge on what "behind" means.
+
+Both views also reference `com.liminallabs.core`, for the shared missing-sprite
+placeholder and nothing else. **`Runtime/` does not**, and that is the line worth
+holding: the solve stays a pure function over structs that anything can call, while the
+half that draws is allowed to know about the house's shared assets.
 
 ### Why one package rather than four
 
@@ -171,9 +176,11 @@ obvious those are one answer rendered twice, not two implementations that agree 
 For a single-view scene, delete `Compass Bar` or `Screen Indicators`. The presenters
 register themselves, so removing one changes nothing else.
 
-Icons come from `com.liminallabs.shareddemoassets`, which is optional. Without it the
-markers draw as tinted blanks and everything else in the milestone still works — a
-missing icon costs a blank marker, never a blank frame.
+Icons come from `com.liminallabs.shareddemoassets`, which is optional. Without it every
+marker draws core's red question mark, which is the point — a missing icon announces
+itself rather than looking like minimal styling. Release builds fall back to a tinted
+blank instead, so nothing red ever reaches a player. A missing icon costs a marker you
+can see, never a blank frame.
 
 ---
 
