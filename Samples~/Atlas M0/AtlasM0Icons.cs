@@ -12,7 +12,13 @@ namespace LiminalLabs.Atlas.SampleM0
     ///
     /// Naming them is the difference between changing an icon and hunting a magic number.
     /// </summary>
-    internal static class AtlasM0Icons
+    /// <remarks>
+    /// Public, not internal: the scene builder that writes these into the AtlasIcons asset
+    /// lives in LiminalLabs.Atlas.SampleM0.Editor, and an assembly boundary is exactly
+    /// where internal stops. The demo's other helper, AtlasM0Input, stays internal because
+    /// only the runtime half uses it.
+    /// </remarks>
+    public static class AtlasM0Icons
     {
         public const int Objective = 0;
         public const int Waypoint = 1;
