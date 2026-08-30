@@ -321,7 +321,7 @@ namespace LiminalLabs.Atlas.Tests
                 "far outside a 180 degree bar, so released rather than piled at an end");
 
             Assert.AreEqual(1, screen.VisibleCount);
-            Assert.Less(screen.VisiblePosition(0).x, 0f,
+            Assert.Less(screen.VisiblePosition(0).x, 960f,
                 "pinned to the LEFT half - mirrored through the centre before clamping");
         }
 
@@ -413,7 +413,13 @@ namespace LiminalLabs.Atlas.Tests
             registry.Register(new Fake { At = new Vector3(0f, 0f, 20f) });   // dead ahead
             registry.Tick(Viewer());
 
-            Assert.AreEqual(0f, screen.VisiblePosition(0).x, 2f, "centre of the screen");
+            // Anchored to the area's bottom-left, so the centre of a 1920x1080 area is
+            // (960, 540). This previously asserted (0, ...) and passed, which is the
+            // corner - the test was written against the arithmetic instead of against
+            // where the icon has to appear, so it locked the defect in rather than
+            // catching it.
+            Assert.AreEqual(960f, screen.VisiblePosition(0).x, 2f, "horizontal centre");
+            Assert.AreEqual(540f, screen.VisiblePosition(0).y, 2f, "vertical centre");
         }
 
         // ---- registration hygiene ---------------------------------------------
@@ -588,6 +594,70 @@ namespace LiminalLabs.Atlas.Tests
             foreach (RectTransform rect in presenter.GetComponentsInChildren<RectTransform>(true))
                 if (rect.name == "Direction " + label) return rect;
             return null;
+        }
+
+
+        /// <summary>
+        /// An on-screen target lands inside the area it is drawn in.
+        ///
+        /// This is the assertion that was missing, and its absence let every indicator sit
+        /// half a screen down and to the left for as long as the component existed. The
+        /// position was built from <c>rect.xMin</c>, which is measured from the pivot,
+        /// while the pool anchors to the corner - so the two tests that did exist agreed
+        /// with the arithmetic and disagreed with the screen.
+        ///
+        /// A bound rather than an exact point on purpose: an exact expected value is what
+        /// a test written from the implementation looks like, and it is how this was missed.
+        /// </summary>
+        [Test]
+        public void EveryOnScreenIndicatorLandsInsideTheArea()
+        {
+            ScreenPresenter screen = Spawn<ScreenPresenter>(1920f, 1080f);
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new ScreenProjection(), screen);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 20f) });      // ahead
+            registry.Register(new Fake { At = new Vector3(4f, 0f, 20f) });      // right of centre
+            registry.Register(new Fake { At = new Vector3(-4f, 2f, 20f) });     // left and up
+            registry.Tick(Viewer());
+
+            Assert.AreEqual(3, screen.VisibleCount);
+
+            for (int i = 0; i < 3; i++)
+            {
+                Vector2 at = screen.VisiblePosition(i);
+                Assert.GreaterOrEqual(at.x, 0f, "indicator " + i + " is left of the area");
+                Assert.LessOrEqual(at.x, 1920f, "indicator " + i + " is right of the area");
+                Assert.GreaterOrEqual(at.y, 0f, "indicator " + i + " is below the area");
+                Assert.LessOrEqual(at.y, 1080f, "indicator " + i + " is above the area");
+            }
+        }
+
+        /// <summary>
+        /// Right of centre draws right of centre, and up draws up.
+        ///
+        /// The sign check the position maths never had. Getting it mirrored is the classic
+        /// indicator bug and looks entirely plausible until you compare two markers.
+        /// </summary>
+        [Test]
+        public void ScreenIndicatorsKeepTheirDirection()
+        {
+            ScreenPresenter screen = Spawn<ScreenPresenter>(1920f, 1080f);
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new ScreenProjection(), screen);
+
+            registry.Register(new Fake { At = new Vector3(-4f, 0f, 20f) });     // left
+            registry.Register(new Fake { At = new Vector3(4f, 3f, 20f) });      // right and up
+            registry.Tick(Viewer());
+
+            Vector2 a = screen.VisiblePosition(0);
+            Vector2 b = screen.VisiblePosition(1);
+
+            Assert.Less(a.x, 960f, "a target to the left draws left of centre");
+            Assert.Greater(b.x, 960f, "a target to the right draws right of centre");
+            Assert.Greater(b.y, 540f, "a target above draws above centre");
         }
 
     }

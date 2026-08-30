@@ -320,9 +320,19 @@ namespace LiminalLabs.Atlas
                     viewport = new Vector2(solve.ViewportPoint.x, solve.ViewportPoint.y);
                 }
 
+                // The pool anchors to the area's bottom-left corner - BuildPool sets
+                // anchorMin and anchorMax to zero - so anchoredPosition runs 0..size.
+                //
+                // The rect's own xMin and yMin must not appear here. They are measured
+                // from the pivot, and a full-screen layer keeps the default centre pivot,
+                // which made them -width/2 and -height/2: every indicator was placed half
+                // a screen down and to the left, so a target dead ahead sat in the corner.
+                // It was wrong for every marker in every frame, and two tests agreed with
+                // it because they were written against the arithmetic rather than against
+                // where the icon has to appear.
                 entry.Rect.anchoredPosition = new Vector2(
-                    bounds.xMin + viewport.x * bounds.width,
-                    bounds.yMin + viewport.y * bounds.height);
+                    viewport.x * bounds.width,
+                    viewport.y * bounds.height);
 
                 // Drawn whether or not a sprite resolved. An Image with no sprite renders
                 // a plain quad, which tinted is a readable blank marker - and a blank

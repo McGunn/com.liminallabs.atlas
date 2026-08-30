@@ -36,6 +36,19 @@ thing that lets two views quietly disagree about what is behind you.
 
 ### Fixed
 
+- **Every on-screen indicator was half a screen down and to the left.** The position was
+  built from `area.rect.xMin`/`yMin`, which are measured from the pivot, while the pooled
+  indicators anchor to the area's bottom-left corner. On a full-screen layer with the
+  default centre pivot those are `-width/2` and `-height/2`, so a target dead ahead drew
+  in the corner. Wrong for every marker in every frame since the component was written.
+
+  Two tests covered this position and **both encoded the error** — one asserted that a
+  target dead ahead sits at `x == 0`, which is the corner, and called it "centre of the
+  screen". They were written from the arithmetic rather than from where the icon has to
+  appear, so they locked the defect in instead of catching it. Both are corrected, and
+  two new tests assert bounds and direction rather than an exact expected value.
+
+
 - **A missing TMP Essential Resources import crashed the presenters.**
   `TMP_Settings.defaultFontAsset` dereferences a null instance rather than returning
   null, so it threw from `Awake` — taking the whole presenter with it, and every marker
