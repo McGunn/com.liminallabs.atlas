@@ -17,32 +17,20 @@ namespace LiminalLabs.Atlas
         public AtlasFilter Filter { get; set; }
 
         public void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
-                          IReadOnlyList<IAtlasTrackable> targets,
+                          IReadOnlyList<AtlasCandidate> candidates,
                           List<AtlasSolve> into)
         {
-            // Indexed rather than foreach: iterating an IReadOnlyList<T> with foreach
-            // boxes the enumerator, once per projection per frame, forever. Test 15.
-            for (int i = 0; i < targets.Count; i++)
+            for (int i = 0; i < candidates.Count; i++)
             {
-                IAtlasTrackable target = targets[i];
-                Vector3 position = target.Position;
-                AtlasMarker marker = target.Marker;
+                AtlasCandidate candidate = candidates[i];
 
-                // Filtered here, before anything is solved for it - see Filter.
-                if (!Filter.IsUnfiltered && !Filter.Allows(marker)) continue;
+                // Filtered here, before anything is copied - see Filter.
+                if (!Filter.IsUnfiltered && !Filter.Allows(candidate.Marker)) continue;
 
-                float distance = Vector3.Distance(viewer.Position, position);
-
-                into.Add(new AtlasSolve(
-                    target,
-                    marker,
-                    AtlasMath.Bearing(viewer, position),
-                    distance,
-                    AtlasMath.Fade(distance, marker.MaxDistance),
-                    default,
-                    default,
-                    false,
-                    target.Space == viewer.Space));
+                // Nothing is computed. A bearing is what a compass draws and the registry
+                // already worked it out for every view at once; this projection exists to
+                // say which of the shared numbers the bar cares about, and no more.
+                into.Add(new AtlasSolve(candidate, default, false));
             }
         }
     }

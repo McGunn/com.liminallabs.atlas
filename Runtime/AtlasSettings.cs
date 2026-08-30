@@ -34,5 +34,27 @@ namespace LiminalLabs.Atlas
         /// <summary>Exclude markers in a space other than the viewer's. M1 gives
         /// projections the option of showing them as an edge hint instead.</summary>
         public bool CullOtherSpaces = true;
+
+        /// <summary>
+        /// How many markers past the largest view's limit are solved each frame.
+        ///
+        /// Solving is the expensive half, so the registry only solves the top slice by
+        /// priority - but projections filter further, by space, by AtlasFilter and by
+        /// fade, so solving exactly the limit would leave a heavily filtered view short of
+        /// markers it would have drawn. Four is generous for a HUD and still bounded; a
+        /// game whose views filter hard wants more, and one that never filters can drop it
+        /// to 1 and pay for exactly what it draws.
+        /// </summary>
+        public int CandidateSlack = 4;
+
+        /// <summary>
+        /// Metres either side of the viewer that still count as level.
+        ///
+        /// A band rather than a comparison, because the honest answer near zero is "level"
+        /// and a strict greater-than would flicker an up-chevron on and off as a player
+        /// walked a ramp. Roughly a storey by default, so a marker on the next floor reads
+        /// as above and one on a kerb does not.
+        /// </summary>
+        public float ElevationBand = 2.5f;
     }
 }

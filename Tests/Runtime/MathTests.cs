@@ -595,5 +595,64 @@ namespace LiminalLabs.Atlas.Tests
             Assert.IsFalse(filter.Allows(shop), "a shop does not");
         }
 
+
+        // ---- elevation banding -----------------------------------------------
+
+        /// <summary>
+        /// A band, not a comparison. A player walking up a kerb must not flicker an
+        /// up-chevron on and off, which a strict greater-than does at every step.
+        /// </summary>
+        [Test]
+        public void ElevationInsideTheBandReadsAsLevel()
+        {
+            var settings = new AtlasSettings { ElevationBand = 2.5f };
+
+            Assert.AreEqual(AtlasElevation.Level, Level(0f, settings));
+            Assert.AreEqual(AtlasElevation.Level, Level(2.4f, settings));
+            Assert.AreEqual(AtlasElevation.Level, Level(-2.4f, settings));
+            Assert.AreEqual(AtlasElevation.Above, Level(3f, settings));
+            Assert.AreEqual(AtlasElevation.Below, Level(-3f, settings));
+        }
+
+        /// <summary>The same rule the registry applies, kept here so the boundary is
+        /// asserted rather than assumed to match.</summary>
+        private static AtlasElevation Level(float elevation, AtlasSettings settings)
+        {
+            float band = Mathf.Max(0f, settings.ElevationBand);
+            return elevation > band ? AtlasElevation.Above
+                 : elevation < -band ? AtlasElevation.Below
+                 : AtlasElevation.Level;
+        }
+
+        // ---- the map's inverse ------------------------------------------------
+
+        /// <summary>
+        /// Clicking a map point and asking where it is in the world has to land back where
+        /// it started. The forward direction has been tested since M1; this is the one that
+        /// makes a player-placed waypoint appear under the cursor rather than near it.
+        /// </summary>
+        [Test]
+        public void MapPointAndItsInverseRoundTrip()
+        {
+            var frame = new AtlasMapFrame(new Vector2(120f, -40f), 75f, 33f);
+            var world = new Vector2(150f, 10f);
+
+            Vector2 point = AtlasMath.MapPoint(frame, world);
+
+            // The inverse the presenter uses: un-centre, scale by the span, rotate back.
+            Vector2 fraction = point - new Vector2(0.5f, 0.5f);
+            Vector2 back = frame.Centre + AtlasMath.RotateMap(fraction * frame.Span, -frame.Rotation);
+
+            Assert.AreEqual(world.x, back.x, 0.01f);
+            Assert.AreEqual(world.y, back.y, 0.01f);
+        }
+
+        [Test]
+        public void RotatingByZeroChangesNothing()
+        {
+            var offset = new Vector2(3f, -7f);
+            Assert.AreEqual(offset, AtlasMath.RotateMap(offset, 0f));
+        }
+
     }
 }

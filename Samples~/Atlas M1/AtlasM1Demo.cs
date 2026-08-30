@@ -53,11 +53,14 @@ namespace LiminalLabs.Atlas.SampleM1
             }
 
             // A landmark ring, so there is always something at the minimap's edge to pin
-            // and something on the world map that the minimap cannot reach.
+            // and something on the world map that the minimap cannot reach. Heights vary,
+            // so the elevation chevrons have something to say.
             for (int i = 0; i < 8; i++)
             {
                 float angle = i / 8f * Mathf.PI * 2f;
-                var at = new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * 120f;
+                float height = (i % 3 - 1) * 12f;    // below, level, above
+                var at = new Vector3(Mathf.Sin(angle), 0f, Mathf.Cos(angle)) * 120f
+                       + Vector3.up * height;
 
                 registry.Registry.Register(new Landmark(at, new AtlasMarker
                 {

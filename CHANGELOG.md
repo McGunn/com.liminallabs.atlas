@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.6.0] — one solve, actually once
+
+### Changed — the optimisation the README was already claiming
+
+- **`AtlasCandidate`: the shared work happens once.** Position, marker, distance, bearing,
+  fade, viewport point, elevation and occlusion are computed by the registry and handed to
+  every projection.
+
+  It was not true before. Each projection read the target again and recomputed, so with a
+  compass, indicators and a map registered, the same square root ran **three times** and
+  the same bearing **four**, per marker, per frame — plus six rebuilds of the marker
+  struct. The views agreed because they ran identical arithmetic, not because they shared
+  it. `CandidatesArriveAlreadySolved` now asserts they share it.
+
+- **Cost follows what is drawn, not what is tracked.** Candidates are ranked by priority
+  and only the top slice is solved. Priority lives on the marker and owes nothing to the
+  viewer, which is the only reason this ordering is available. `CandidateSlack` decides how
+  much headroom the projections' own filtering gets.
+
+- **`AtlasMarkerBehaviour.Marker` is cached.** It rebuilt a nine-field struct on every
+  read, which was correct and wasteful; `OnValidate` and `Rebuild()` invalidate it.
+
+- **Marker limits are per view.** A world map wanting 64 and a compass wanting 12 are both
+  reasonable and one shared number suited neither — it also made the pool-size check warn
+  against a figure that was right for nothing in the scene.
+
+### Added
+
+- **Occlusion.** `IAtlasOcclusion` is the seam; `AtlasPhysicsOcclusion` is the obvious
+  implementation, spending a fixed raycast budget per frame round-robin and answering
+  everything else from cache. Occlusion changes when someone walks behind a wall, not
+  between frames. Indicators dim rather than vanish by default — one the player stops
+  trusting is worse than one that says "it is there, you cannot see it".
+- **Elevation.** Every solve carries metres above the viewer and a banded `Level`. A band,
+  not a comparison: a strict greater-than flickers a chevron on and off as a player walks
+  a ramp. The screen presenter draws up and down chevrons.
+- **Declutter.** `ScreenPresenter.minimumSeparation` pushes overlapping indicators apart by
+  relaxation, walking in priority order so a quest objective stays put and ambient markers
+  make room. Five markers at one screen edge used to draw as one.
+- **Map interaction.** `TryGetMarkerAt` hit-tests against where markers were *drawn* — a
+  pinned marker is not at its target's map position, and clicking the pinned icon means the
+  pinned icon. `TryGetWorldPosition` turns a click into somewhere to walk to.
+
+
 ## [0.5.0] — soft fog and a legend
 
 ### Added

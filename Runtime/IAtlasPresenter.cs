@@ -39,14 +39,23 @@ namespace LiminalLabs.Atlas
     public interface IAtlasProjection
     {
         /// <summary>
-        /// Solve every target into <paramref name="into"/>, which arrives cleared and is
-        /// reused between frames.
+        /// Turn candidates into solves, into <paramref name="into"/>, which arrives
+        /// cleared and is reused between frames.
+        ///
+        /// <b>The candidates arrive already solved</b> for everything the views share -
+        /// position, marker, distance, bearing, fade, viewport point, elevation, occlusion.
+        /// A projection's job is only what is genuinely its own: turning one of those into
+        /// the coordinate its presenter draws in. Recomputing a shared quantity here is how
+        /// "one solve, several views" stops being true, which it was for a while.
+        ///
+        /// They arrive ordered by priority. Preserve that order and the registry can
+        /// truncate to a view's limit without sorting again.
         /// </summary>
         /// <param name="spaces">The registry's spaces. A bearing or a screen point needs
         /// none of this; a map point is a position <i>on a plane</i>, and the plane is the
         /// space's. Passed rather than reached for, so a projection stays a function of
         /// what it is handed.</param>
         void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
-                   IReadOnlyList<IAtlasTrackable> targets, List<AtlasSolve> into);
+                   IReadOnlyList<AtlasCandidate> candidates, List<AtlasSolve> into);
     }
 }

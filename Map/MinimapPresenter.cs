@@ -107,6 +107,7 @@ namespace LiminalLabs.Atlas
         private Entry[] pool;
         private MapProjection projection;
 
+        private readonly List<AtlasSolve> drawn = new List<AtlasSolve>();
         private Texture2D fogTexture;
         private Color32[] fogPixels;
         private float[] fogCoverage;
@@ -298,6 +299,11 @@ namespace LiminalLabs.Atlas
             AtlasMapFrame frame = Projection.LastFrame;
             int shown = 0;
 
+            // Kept so the map can be asked what is under a point after the fact. The solve
+            // list the registry hands over is reused between frames, so holding a reference
+            // to it would be reading next frame's answers; these are copied.
+            drawn.Clear();
+
             // Set for the *next* solve, not this one - the list in hand was filtered with
             // the previous frame's span. One frame of lag on a zoom threshold is invisible;
             // re-solving to avoid it would not be.
@@ -353,6 +359,8 @@ namespace LiminalLabs.Atlas
 
                 tint.a *= fade;
                 entry.Image.color = tint;
+
+                drawn.Add(solve);
 
                 if (!entry.Object.activeSelf) entry.Object.SetActive(true);
             }
@@ -597,6 +605,83 @@ namespace LiminalLabs.Atlas
 
             float facing = AtlasMath.BearingOfDirection(viewer, Vector3.forward);
             viewerArrow.localRotation = Quaternion.Euler(0f, 0f, facing + frame.Rotation);
+        }
+
+        // ---- interaction ------------------------------------------------------
+
+        /// <summary>
+        /// The marker nearest a point in this map's local space, within a radius.
+        ///
+        /// Hit-tested against where markers were <b>drawn</b> rather than where their
+        /// targets are, which is the only version that is correct: a marker pinned to the
+        /// edge is not at its target's map position, and a player clicking the pinned icon
+        /// means the pinned icon.
+        ///
+        /// Nearest rather than first-inside, so overlapping markers resolve to the one the
+        /// cursor is actually closest to instead of to whichever happened to be drawn
+        /// first.
+        /// </summary>
+        public bool TryGetMarkerAt(Vector2 localPoint, out AtlasSolve solve, float radius = 24f)
+        {
+            solve = default;
+            if (pool == null) return false;
+
+            Rect bounds = area.rect;
+
+            // anchoredPosition runs from the rect's corner; a local point from
+            // RectTransformUtility runs from its pivot. Converting here rather than asking
+            // callers to is the difference between this being usable and being a trap.
+            Vector2 fromCorner = new Vector2(localPoint.x - bounds.xMin, localPoint.y - bounds.yMin);
+
+            float best = radius * radius;
+            bool found = false;
+
+            for (int i = 0; i < drawn.Count && i < pool.Length; i++)
+            {
+                float distance = (pool[i].Rect.anchoredPosition - fromCorner).sqrMagnitude;
+                if (distance > best) continue;
+
+                best = distance;
+                solve = drawn[i];
+                found = true;
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// The world position a point on this map corresponds to, on the space's plane.
+        ///
+        /// What a player-placed waypoint needs: click the map, get somewhere to walk to.
+        /// The height is the space's floor, because a map has no opinion about altitude and
+        /// guessing one from the terrain would be a raycast this component has no business
+        /// doing.
+        /// </summary>
+        public bool TryGetWorldPosition(Vector2 localPoint, out Vector3 world)
+        {
+            world = default;
+            if (area == null || registry == null) return false;
+
+            Rect bounds = area.rect;
+            if (bounds.width < AtlasMath.Epsilon || bounds.height < AtlasMath.Epsilon) return false;
+
+            AtlasMapFrame frame = Projection.LastFrame;
+
+            // Screen fraction, then undo the frame: rotate the other way and scale back out.
+            var fraction = new Vector2((localPoint.x - bounds.xMin) / bounds.width - 0.5f,
+                                       (localPoint.y - bounds.yMin) / bounds.height - 0.5f);
+
+            Vector2 onPlane = frame.Centre + AtlasMath.RotateMap(fraction * frame.Span, -frame.Rotation);
+
+            AtlasSpace space = registry.Registry.Spaces.GetOrDefault(frame.Space);
+
+            // The default plane is world XZ, so the inverse is a swap. A space with its own
+            // WorldToMap would need that matrix inverted, which is why this reports failure
+            // rather than guessing.
+            if (space == null) return false;
+
+            world = new Vector3(onPlane.x, space.FloorHeight, onPlane.y);
+            return true;
         }
 
         public int VisibleCount

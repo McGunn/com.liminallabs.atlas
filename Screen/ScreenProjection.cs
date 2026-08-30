@@ -22,31 +22,22 @@ namespace LiminalLabs.Atlas
         public AtlasFilter Filter { get; set; }
 
         public void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
-                          IReadOnlyList<IAtlasTrackable> targets,
+                          IReadOnlyList<AtlasCandidate> candidates,
                           List<AtlasSolve> into)
         {
-            for (int i = 0; i < targets.Count; i++)
+            for (int i = 0; i < candidates.Count; i++)
             {
-                IAtlasTrackable target = targets[i];
-                Vector3 position = target.Position;
-                AtlasMarker marker = target.Marker;
+                AtlasCandidate candidate = candidates[i];
 
-                // Filtered here, before anything is solved for it - see Filter.
-                if (!Filter.IsUnfiltered && !Filter.Allows(marker)) continue;
+                if (!Filter.IsUnfiltered && !Filter.Allows(candidate.Marker)) continue;
 
-                float distance = Vector3.Distance(viewer.Position, position);
-                Vector3 viewport = AtlasMath.Viewport(viewer, position);
+                // The one thing this view decides: whether the point is on screen. The
+                // viewport point itself was computed once for the whole frame, which is
+                // what stops this view and the compass reaching different conclusions
+                // about the same marker.
+                bool onScreen = AtlasMath.IsOnScreen(candidate.ViewportPoint);
 
-                into.Add(new AtlasSolve(
-                    target,
-                    marker,
-                    AtlasMath.Bearing(viewer, position),
-                    distance,
-                    AtlasMath.Fade(distance, marker.MaxDistance),
-                    viewport,
-                    default,
-                    AtlasMath.IsOnScreen(viewport, EdgeMargin),
-                    target.Space == viewer.Space));
+                into.Add(new AtlasSolve(candidate, default, onScreen));
             }
         }
     }

@@ -128,61 +128,35 @@ namespace LiminalLabs.Atlas
         public AtlasFilter Filter { get; set; }
 
         public void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
-                          IReadOnlyList<IAtlasTrackable> targets, List<AtlasSolve> into)
+                          IReadOnlyList<AtlasCandidate> candidates, List<AtlasSolve> into)
         {
             AtlasSpace space = spaces != null ? spaces.GetOrDefault(viewer.Space) : null;
 
             AtlasMapFrame frame = BuildFrame(viewer, space);
             LastFrame = frame;
 
-            for (int i = 0; i < targets.Count; i++)
+            for (int i = 0; i < candidates.Count; i++)
             {
-                IAtlasTrackable target = targets[i];
-                if (target == null || !target.IsTracked) continue;
+                AtlasCandidate candidate = candidates[i];
+                if (!candidate.SameSpace) continue;
+                if (candidate.Fade <= 0f) continue;
 
-                bool sameSpace = target.Space == viewer.Space;
-                if (!sameSpace) continue;
+                if (!Filter.IsUnfiltered && !Filter.Allows(candidate.Marker)) continue;
 
-                // Filtered here, before anything is solved for it - see Filter. On a map
-                // this is also the zoom LOD: a view raises MinimumImportance as it zooms
-                // out, so a region shows its cities and a street shows its shops.
-                if (!Filter.IsUnfiltered && !Filter.Allows(target.Marker)) continue;
+                if (HideUndiscovered && space != null && !space.IsRevealed(candidate.Position)) continue;
 
-                if (HideUndiscovered && space != null && !space.IsRevealed(target.Position)) continue;
-
-                Vector3 world = target.Position;
-                Vector2 onPlane = space != null ? space.ToMap(world) : Flatten(world);
+                // The one thing this view decides: where the marker lands on the plane.
+                Vector2 onPlane = space != null ? space.ToMap(candidate.Position)
+                                                : Flatten(candidate.Position);
 
                 float radiusFraction = AtlasMath.MapRadiusFraction(frame, onPlane);
                 if (radiusFraction > CullRadiusFraction) continue;
 
-                Vector2 mapPoint = AtlasMath.MapPoint(frame, onPlane);
-
-                float distance = Vector3.Distance(viewer.Position, world);
-                float fade = AtlasMath.Fade(distance, target.Marker.MaxDistance);
-                if (fade <= 0f) continue;
-
                 // OnScreen means "inside the frame" here. The word is the solve's, shared
                 // across projections on purpose: a presenter asking "do I draw this where
-                // it is, or pin it to an edge?" is asking one question whichever view it
-                // is, and it should not have to know which projection filled the struct.
-                bool inside = radiusFraction <= 1f;
-
-                // The real camera viewport, not the map point repeated with the radius
-                // fraction stuffed into z. Filling a documented field with a different
-                // quantity because it was free is how a struct stops meaning what it says,
-                // and the fraction is recoverable from MapPoint exactly:
-                // radiusFraction == 2 * |MapPoint - (0.5, 0.5)|.
-                into.Add(new AtlasSolve(
-                    target,
-                    target.Marker,
-                    AtlasMath.Bearing(viewer, world),
-                    distance,
-                    fade,
-                    AtlasMath.Viewport(viewer, world),
-                    mapPoint,
-                    inside,
-                    true));
+                // it is, or pin it to an edge?" asks one question whichever view it is.
+                into.Add(new AtlasSolve(candidate, AtlasMath.MapPoint(frame, onPlane),
+                                        radiusFraction <= 1f));
             }
         }
 

@@ -51,7 +51,44 @@ namespace LiminalLabs.Atlas
 
         public Vector3 Position => anchor != null ? anchor.position : transform.position;
 
-        public virtual AtlasMarker Marker => new AtlasMarker
+        /// <summary>
+        /// The marker, built once and kept.
+        ///
+        /// This used to construct a fresh struct on every read, which was correct and
+        /// wasteful: the registry reads it, then every projection read it again, so a
+        /// nine-field struct was assembled five or six times per marker per frame to
+        /// describe data that had not changed. Now it is built when something changes and
+        /// read the rest of the time.
+        ///
+        /// <see cref="OnValidate"/> rebuilds it when the inspector is touched, and
+        /// <see cref="Rebuild"/> is there for code that changes a field at runtime. A
+        /// subclass overriding <see cref="Marker"/> to compute something live still works -
+        /// it never touches the cache.
+        /// </summary>
+        public virtual AtlasMarker Marker
+        {
+            get
+            {
+                if (!markerCached) Rebuild();
+                return cachedMarker;
+            }
+        }
+
+        private AtlasMarker cachedMarker;
+        private bool markerCached;
+
+        /// <summary>Rebuilds the cached marker. Call after changing a field in code.</summary>
+        public void Rebuild()
+        {
+            cachedMarker = Build();
+            markerCached = true;
+        }
+
+#if UNITY_EDITOR
+        private void OnValidate() => markerCached = false;
+#endif
+
+        private AtlasMarker Build() => new AtlasMarker
         {
             Kind = kind,
             Priority = priority,

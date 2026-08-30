@@ -47,10 +47,46 @@ namespace LiminalLabs.Atlas
         /// them as an edge hint instead.</summary>
         public readonly bool SameSpace;
 
+        /// <summary>Metres above the viewer; negative is below.</summary>
+        public readonly float Elevation;
+
+        /// <summary>Above, below, or level. Banded, so a kerb is not another floor.</summary>
+        public readonly AtlasElevation Level;
+
+        /// <summary>Whether something solid stands between the viewer and this marker.
+        /// Always false unless the registry has an <see cref="IAtlasOcclusion"/>.</summary>
+        public readonly bool Occluded;
+
+        /// <summary>
+        /// From a candidate, plus the one or two things a view works out for itself.
+        ///
+        /// The shape that keeps the shared arithmetic shared: everything a projection did
+        /// not compute is copied across rather than recomputed, so a view cannot silently
+        /// disagree with its siblings about a distance or a bearing.
+        /// </summary>
+        public AtlasSolve(in AtlasCandidate candidate, Vector2 mapPoint, bool onScreen)
+        {
+            Target = candidate.Target;
+            Marker = candidate.Marker;
+            Bearing = candidate.Bearing;
+            Distance = candidate.Distance;
+            Fade = candidate.Fade;
+            ViewportPoint = candidate.ViewportPoint;
+            MapPoint = mapPoint;
+            OnScreen = onScreen;
+            SameSpace = candidate.SameSpace;
+            Elevation = candidate.Elevation;
+            Level = candidate.Level;
+            Occluded = candidate.Occluded;
+        }
+
         public AtlasSolve(IAtlasTrackable target, in AtlasMarker marker, float bearing,
                           float distance, float fade, Vector3 viewportPoint, Vector2 mapPoint,
                           bool onScreen, bool sameSpace)
         {
+            Elevation = 0f;
+            Level = AtlasElevation.Level;
+            Occluded = false;
             Target = target;
             Marker = marker;
             Bearing = bearing;

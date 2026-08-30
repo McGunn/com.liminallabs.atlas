@@ -56,6 +56,10 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             var registry = registryObject.AddComponent<AtlasRegistryBehaviour>();
             registry.ViewerCamera = camera;
 
+            // Occlusion, on a budget. The pillars below are what it has to see through -
+            // without them the feature is a component with nothing to demonstrate.
+            registryObject.AddComponent<AtlasPhysicsOcclusion>();
+
             // The space, authored as a component.
             //
             // Writing straight into registry.Registry.Spaces here would do nothing: the
@@ -80,6 +84,18 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             discoveryFields.FindProperty("sightRadius").floatValue = 55f;
             discoveryFields.FindProperty("resolution").intValue = 256;
             discoveryFields.ApplyModifiedPropertiesWithoutUndo();
+
+            // Something to hide behind, and something to be above and below - the two
+            // features that are invisible in an empty field.
+            for (int i = 0; i < 6; i++)
+            {
+                float angle = i / 6f * Mathf.PI * 2f;
+                GameObject pillar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                pillar.name = "Pillar " + (i + 1);
+                pillar.transform.position = new Vector3(Mathf.Sin(angle), 4f, Mathf.Cos(angle)) * 26f
+                                          + Vector3.up * 4f;
+                pillar.transform.localScale = new Vector3(6f, 12f, 6f);
+            }
 
             GameObject orbiting = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             orbiting.name = "Orbiting Signal";
@@ -328,6 +344,12 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             serialized.FindProperty("arrowSprite").objectReferenceValue =
                 Shared(AtlasM1Icons.ArrowSpriteName);
             serialized.FindProperty("showDistanceLabels").boolValue = true;
+
+            // Chevrons for markers above and below, and enough separation that two
+            // objectives at the same screen edge are two objectives.
+            serialized.FindProperty("aboveSprite").objectReferenceValue = Shared("UI_SmallArrowUp");
+            serialized.FindProperty("belowSprite").objectReferenceValue = Shared("UI_SmallArrowDown");
+            serialized.FindProperty("minimumSeparation").floatValue = 46f;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 

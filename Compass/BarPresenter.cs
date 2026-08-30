@@ -57,6 +57,11 @@ namespace LiminalLabs.Atlas
         [Tooltip("Scale up close.")]
         [SerializeField, Range(0.1f, 2f)] private float maxScale = 1.2f;
 
+        [Header("Occlusion")]
+        [Tooltip("Multiplies alpha when something solid stands between the viewer and the " +
+                 "marker. Needs an IAtlasOcclusion on the registry.")]
+        [SerializeField, Range(0f, 1f)] private float occludedAlpha = 0.45f;
+
         [Header("Labels")]
         [SerializeField] private bool showDistanceLabels = true;
 
@@ -401,6 +406,11 @@ namespace LiminalLabs.Atlas
 
                 entry.Image.sprite = sprite;
                 entry.Image.enabled = true;
+
+                // Dimmed, never hidden. A compass exists to say where a thing is; a wall
+                // between you and it does not change the answer, only how confidently the
+                // HUD should assert it.
+                if (solve.Occluded) tint.a *= occludedAlpha;
 
                 tint.a *= fade;
                 entry.Image.color = tint;

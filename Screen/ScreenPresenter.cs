@@ -62,6 +62,34 @@ namespace LiminalLabs.Atlas
         [SerializeField] private float labelSize = 14f;
         [SerializeField] private float labelOffsetY = -30f;
 
+        [Header("Occlusion")]
+        [Tooltip("Multiplies alpha when something solid stands between the viewer and the " +
+                 "marker. Needs an IAtlasOcclusion on the registry; without one nothing is " +
+                 "ever occluded and this does nothing.")]
+        [SerializeField, Range(0f, 1f)] private float occludedAlpha = 0.35f;
+
+        [Tooltip("Hide occluded markers entirely rather than dimming them.")]
+        [SerializeField] private bool hideOccluded;
+
+        [Header("Elevation")]
+        [Tooltip("Drawn above the icon when the target is higher than the viewer.")]
+        [SerializeField] private Sprite aboveSprite;
+
+        [Tooltip("Drawn below the icon when the target is lower.")]
+        [SerializeField] private Sprite belowSprite;
+
+        [SerializeField] private Vector2 elevationSize = new Vector2(16f, 16f);
+        [SerializeField] private float elevationOffset = 26f;
+
+        [Header("Declutter")]
+        [Tooltip("Push overlapping indicators apart. Zero is off; otherwise the minimum " +
+                 "gap between two icons, in rect units.")]
+        [SerializeField, Min(0f)] private float minimumSeparation;
+
+        [Tooltip("How many passes to spend separating. Two is enough for a HUD; more is " +
+                 "chasing a perfect packing nobody will notice.")]
+        [SerializeField, Range(1, 6)] private int separationPasses = 2;
+
         [Header("Culling")]
         [Tooltip("Hide indicators whose target is behind the viewer. The compass still " +
                  "shows them; this is for HUDs that want the screen kept clear.")]
@@ -79,6 +107,7 @@ namespace LiminalLabs.Atlas
 
         private RectTransform area;
         private Entry[] pool;
+        private Vector2[] placed;
         private TMP_FontAsset font;
 
         public IAtlasIconProvider IconProvider { get; set; }
@@ -198,7 +227,20 @@ namespace LiminalLabs.Atlas
                 root.SetActive(false);
                 TextMeshProUGUI label = showDistanceLabels ? BuildLabel(rect) : null;
 
-                pool[i] = new Entry(rect, image, arrowRect, arrowImage, label);
+                var chevronObject = new GameObject("Elevation", typeof(RectTransform), typeof(Image));
+                chevronObject.transform.SetParent(rect, false);
+
+                var chevronRect = (RectTransform)chevronObject.transform;
+                chevronRect.anchorMin = new Vector2(0.5f, 0.5f);
+                chevronRect.anchorMax = new Vector2(0.5f, 0.5f);
+                chevronRect.pivot = new Vector2(0.5f, 0.5f);
+                chevronRect.sizeDelta = elevationSize;
+
+                var chevronImage = chevronObject.GetComponent<Image>();
+                chevronImage.raycastTarget = false;
+                chevronObject.SetActive(false);
+
+                pool[i] = new Entry(rect, image, arrowRect, arrowImage, label, chevronRect, chevronImage);
             }
         }
 
@@ -294,6 +336,8 @@ namespace LiminalLabs.Atlas
                 AtlasSolve solve = solves[i];
                 if (solve.Fade <= 0f) continue;
 
+                if (hideOccluded && solve.Occluded) continue;
+
                 bool clamped = !solve.OnScreen;
 
                 // Both off by default. An indicator pinned to the edge for something
@@ -363,8 +407,29 @@ namespace LiminalLabs.Atlas
                 entry.Image.sprite = sprite;
                 entry.Image.enabled = true;
 
+                // Dimmed rather than hidden by default. An indicator that vanishes behind
+                // cover is one the player stops trusting; one that fades still says "it is
+                // there, you cannot see it", which is the actual state of the world.
+                if (solve.Occluded) tint.a *= occludedAlpha;
+
                 tint.a *= fade;
                 entry.Image.color = tint;
+
+                Sprite chevron = solve.Level == AtlasElevation.Above ? aboveSprite
+                    : solve.Level == AtlasElevation.Below ? belowSprite
+                    : null;
+
+                bool showChevron = chevron != null;
+                if (entry.ChevronObject.activeSelf != showChevron)
+                    entry.ChevronObject.SetActive(showChevron);
+
+                if (showChevron)
+                {
+                    entry.ChevronImage.sprite = chevron;
+                    entry.ChevronImage.color = tint;
+                    entry.ChevronRect.anchoredPosition = new Vector2(
+                        0f, solve.Level == AtlasElevation.Above ? elevationOffset : -elevationOffset);
+                }
 
                 if (entry.Label != null)
                 {
@@ -397,6 +462,66 @@ namespace LiminalLabs.Atlas
             {
                 if (pool[i].Object.activeSelf) pool[i].Object.SetActive(false);
             }
+
+            if (minimumSeparation > 0f) Separate(shown, bounds);
+        }
+
+        /// <summary>
+        /// Pushes overlapping indicators apart, highest priority staying put.
+        ///
+        /// Five objectives at the same screen edge draw exactly on top of each other
+        /// otherwise, which reads as one objective and is the most common complaint about
+        /// any indicator system. Relaxation rather than a layout solve: a few passes of
+        /// "if these two are too close, push them apart" converges fast at HUD counts and
+        /// degrades into slight crowding rather than into a wrong answer.
+        ///
+        /// <b>Order matters and is not arbitrary.</b> Solves arrive priority-ordered, so
+        /// walking forwards means a low-priority marker moves around a high-priority one
+        /// rather than shoving it off its target. A quest objective staying exactly where
+        /// it is while ambient markers make room is the behaviour anyone would want.
+        ///
+        /// Allocation-free: the scratch array is sized once with the pool.
+        /// </summary>
+        private void Separate(int shown, Rect bounds)
+        {
+            if (shown < 2) return;
+            if (placed == null || placed.Length < pool.Length) placed = new Vector2[pool.Length];
+
+            for (int i = 0; i < shown; i++) placed[i] = pool[i].Rect.anchoredPosition;
+
+            float minimum = minimumSeparation;
+            float minimumSquared = minimum * minimum;
+
+            for (int pass = 0; pass < separationPasses; pass++)
+            {
+                for (int i = 1; i < shown; i++)
+                {
+                    for (int j = 0; j < i; j++)
+                    {
+                        Vector2 offset = placed[i] - placed[j];
+                        float lengthSquared = offset.sqrMagnitude;
+                        if (lengthSquared >= minimumSquared) continue;
+
+                        // Exactly coincident: no direction to separate along, so pick one.
+                        // Down, because an indicator sliding down off its target reads as
+                        // stacking, and sideways reads as being in the wrong place.
+                        Vector2 direction = lengthSquared > 0.0001f
+                            ? offset / Mathf.Sqrt(lengthSquared)
+                            : Vector2.down;
+
+                        // Only the later - lower priority - marker moves.
+                        placed[i] = placed[j] + direction * minimum;
+                    }
+                }
+            }
+
+            for (int i = 0; i < shown; i++)
+            {
+                Vector2 at = placed[i];
+                at.x = Mathf.Clamp(at.x, 0f, bounds.width);
+                at.y = Mathf.Clamp(at.y, 0f, bounds.height);
+                pool[i].Rect.anchoredPosition = at;
+            }
         }
 
         public int VisibleCount
@@ -428,11 +553,18 @@ namespace LiminalLabs.Atlas
             public readonly GameObject ArrowObject;
 
             public readonly TextMeshProUGUI Label;
+            public readonly RectTransform ChevronRect;
+            public readonly Image ChevronImage;
+            public readonly GameObject ChevronObject;
 
             public Entry(RectTransform rect, Image image, RectTransform arrowRect,
-                         Image arrowImage, TextMeshProUGUI label)
+                         Image arrowImage, TextMeshProUGUI label,
+                         RectTransform chevronRect, Image chevronImage)
             {
                 Label = label;
+                ChevronRect = chevronRect;
+                ChevronImage = chevronImage;
+                ChevronObject = chevronRect.gameObject;
                 Rect = rect;
                 Image = image;
                 ArrowRect = arrowRect;

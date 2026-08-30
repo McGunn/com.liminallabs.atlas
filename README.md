@@ -1,7 +1,8 @@
 # Liminal Labs Atlas
 
 Knowing where things are. Register an object **once**; it appears on the compass bar at
-the correct bearing *and* as an on-screen indicator, from one solve.
+the correct bearing *and* as an on-screen indicator *and* on the map, from one
+solve computed once.
 
 One package, several assemblies — a compass, on-screen indicators, and from M1 a minimap
 and a world map. Reference the assemblies you want; nothing from the others runs.
@@ -63,6 +64,23 @@ without ever becoming one.
 ---
 
 ## Two rules the code enforces on itself
+
+**One solve, and it is one computation.** The registry works out position, marker,
+distance, bearing, fade, viewport point, elevation and occlusion **once per marker per
+frame**, and hands every projection the same `AtlasCandidate`. A projection's job is only
+what is genuinely its own — a bearing becomes a bar position, a viewport point becomes a
+screen point, a world position becomes a map point.
+
+This was not always true. Every projection used to recompute the shared quantities, so
+with three views registered the same square root ran three times and the same bearing
+four, per marker, per frame. The views agreed because they ran identical arithmetic, not
+because they shared it. They now share it, and a test asserts they do.
+
+**Cost follows what is drawn, not what is tracked.** Candidates are ranked by priority
+and only the top slice is solved — priority lives on the marker and owes nothing to the
+viewer, which is the only reason that ordering is available. Ten thousand tracked units
+cost ten thousand squared-distance compares and thirty-odd solves, not ten thousand
+solves.
 
 **The solve is a pure function.** `AtlasMath` never references `Camera` — a grep in the
 verify loop says so, and `AtlasViewer.FromCamera` lives outside `Solve/` precisely so that

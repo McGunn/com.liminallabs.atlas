@@ -36,7 +36,8 @@ namespace LiminalLabs.Atlas
         private readonly List<Output> outputs = new List<Output>();
 
         /// <summary>Refilled every tick and never resized after warm-up.</summary>
-        private readonly List<IAtlasTrackable> candidates = new List<IAtlasTrackable>();
+        private readonly List<AtlasCandidate> candidates = new List<AtlasCandidate>();
+        private readonly List<Ranked> ranked = new List<Ranked>();
 
         public AtlasRegistry(AtlasSettings settings = null)
         {
@@ -146,16 +147,28 @@ namespace LiminalLabs.Atlas
         /// first's pool state, which shows up as half the markers flickering - a symptom
         /// nobody traces back to a duplicate registration.
         /// </summary>
-        public bool AddProjection(IAtlasProjection projection, IAtlasPresenter presenter)
+        /// <param name="maxMarkers">How many markers this view draws at once. Zero uses
+        /// <see cref="AtlasSettings.MaxMarkers"/>. Per view because a world map wanting 64
+        /// and a compass wanting 12 are both reasonable, and one shared number suits
+        /// neither - it also made the pool-size check warn against a figure that was right
+        /// for nothing in the scene.</param>
+        public bool AddProjection(IAtlasProjection projection, IAtlasPresenter presenter,
+                                  int maxMarkers = 0)
         {
             if (projection == null || presenter == null) return false;
 
             for (int i = 0; i < outputs.Count; i++)
                 if (ReferenceEquals(outputs[i].Presenter, presenter)) return false;
 
-            outputs.Add(new Output(projection, presenter));
+            outputs.Add(new Output(projection, presenter, maxMarkers));
             return true;
         }
+
+        /// <summary>
+        /// Who decides what is blocked. Null means nothing ever is, which is how every
+        /// system without occlusion behaves and therefore the right default.
+        /// </summary>
+        public IAtlasOcclusion Occlusion { get; set; }
 
         public bool RemoveProjection(IAtlasPresenter presenter)
         {
@@ -185,7 +198,31 @@ namespace LiminalLabs.Atlas
             LastViewer = viewer;
             if (outputs.Count == 0) return;
 
+            Gather(viewer);
+            Solve(viewer);
+        }
+
+        /// <summary>
+        /// Every marker worth considering, solved once, cheapest test first.
+        ///
+        /// The ordering of the three passes is the whole performance story.
+        ///
+        /// <b>Cull, then rank, then solve.</b> Distance culling is a squared compare and
+        /// runs over everything. Ranking is a sort over what survives. Only the top slice
+        /// gets the square roots, the bearings and the viewport transforms - so the frame
+        /// costs what is <i>drawn</i> rather than what is <i>tracked</i>, which is the
+        /// difference between a strategy game's ten thousand units being free and being
+        /// the frame.
+        ///
+        /// Priority can be ranked before solving because it lives on the marker and owes
+        /// nothing to the viewer. That is the only reason this ordering is available, and
+        /// it is worth not breaking.
+        /// </summary>
+        private void Gather(in AtlasViewer viewer)
+        {
             candidates.Clear();
+            ranked.Clear();
+
             for (int i = 0; i < tracked.Count; i++)
             {
                 IAtlasTrackable target = tracked[i];
@@ -193,20 +230,66 @@ namespace LiminalLabs.Atlas
 
                 if (settings.CullOtherSpaces && target.Space != viewer.Space) continue;
 
-                float maxDistance = target.Marker.MaxDistance;
+                AtlasMarker marker = target.Marker;
+                float maxDistance = marker.MaxDistance;
                 if (maxDistance <= 0f) maxDistance = settings.DefaultMaxDistance;
+
+                Vector3 position = target.Position;
 
                 if (maxDistance > 0f)
                 {
                     // Squared, so culling a thousand markers costs no square roots. The
-                    // projections take the real distance for the ones that survive.
-                    Vector3 offset = target.Position - viewer.Position;
+                    // survivors get the real distance once, below.
+                    Vector3 offset = position - viewer.Position;
                     if (offset.sqrMagnitude > maxDistance * maxDistance) continue;
                 }
 
-                candidates.Add(target);
+                ranked.Add(new Ranked(target, marker, position));
             }
 
+            SortByPriority(ranked);
+
+            // The slice worth solving. Slack above the largest view's limit because the
+            // projections filter further - by space, by AtlasFilter, by fade - so taking
+            // exactly the limit here would leave a view short of markers it would have
+            // drawn. Four is generous for a HUD and still bounded.
+            int wanted = LargestLimit() * Mathf.Max(1, settings.CandidateSlack);
+            int count = Mathf.Min(ranked.Count, wanted);
+
+            if (Occlusion != null) Occlusion.Tick(viewer, tracked);
+
+            float band = Mathf.Max(0f, settings.ElevationBand);
+
+            for (int i = 0; i < count; i++)
+            {
+                Ranked entry = ranked[i];
+                Vector3 position = entry.Position;
+
+                // Everything below happens once per marker per frame, for every view.
+                float distance = Vector3.Distance(viewer.Position, position);
+                float elevation = position.y - viewer.Position.y;
+
+                AtlasElevation level = elevation > band ? AtlasElevation.Above
+                    : elevation < -band ? AtlasElevation.Below
+                    : AtlasElevation.Level;
+
+                candidates.Add(new AtlasCandidate(
+                    entry.Target,
+                    entry.Marker,
+                    position,
+                    distance,
+                    AtlasMath.Bearing(viewer, position),
+                    AtlasMath.Fade(distance, entry.Marker.MaxDistance),
+                    AtlasMath.Viewport(viewer, position),
+                    elevation,
+                    level,
+                    Occlusion != null && Occlusion.IsOccluded(entry.Target, viewer),
+                    entry.Target.Space == viewer.Space));
+            }
+        }
+
+        private void Solve(in AtlasViewer viewer)
+        {
             for (int i = 0; i < outputs.Count; i++)
             {
                 Output output = outputs[i];
@@ -214,12 +297,39 @@ namespace LiminalLabs.Atlas
                 output.Solves.Clear();
                 output.Projection.Solve(viewer, Spaces, candidates, output.Solves);
 
-                SortByPriority(output.Solves);
-
-                if (output.Solves.Count > settings.MaxMarkers)
-                    output.Solves.RemoveRange(settings.MaxMarkers, output.Solves.Count - settings.MaxMarkers);
+                // Already ranked: candidates were sorted before solving and projections
+                // preserve order, so the truncation below keeps the highest priorities
+                // without a second sort.
+                int limit = output.MaxMarkers > 0 ? output.MaxMarkers : settings.MaxMarkers;
+                if (limit > 0 && output.Solves.Count > limit)
+                    output.Solves.RemoveRange(limit, output.Solves.Count - limit);
 
                 output.Presenter.Present(viewer, output.Solves);
+            }
+        }
+
+        private int LargestLimit()
+        {
+            int largest = settings.MaxMarkers;
+            for (int i = 0; i < outputs.Count; i++)
+                if (outputs[i].MaxMarkers > largest) largest = outputs[i].MaxMarkers;
+
+            return Mathf.Max(1, largest);
+        }
+
+        /// <summary>A marker that survived culling, with the two things read off it, so
+        /// neither is read again.</summary>
+        private readonly struct Ranked
+        {
+            public readonly IAtlasTrackable Target;
+            public readonly AtlasMarker Marker;
+            public readonly Vector3 Position;
+
+            public Ranked(IAtlasTrackable target, in AtlasMarker marker, Vector3 position)
+            {
+                Target = target;
+                Marker = marker;
+                Position = position;
             }
         }
 
@@ -232,20 +342,20 @@ namespace LiminalLabs.Atlas
         /// their registration order instead of swapping places between frames and making
         /// the bar shimmer. At the tens of markers a HUD shows, it is also simply faster.
         /// </summary>
-        private static void SortByPriority(List<AtlasSolve> solves)
+        private static void SortByPriority(List<Ranked> entries)
         {
-            for (int i = 1; i < solves.Count; i++)
+            for (int i = 1; i < entries.Count; i++)
             {
-                AtlasSolve current = solves[i];
+                Ranked current = entries[i];
                 int j = i - 1;
 
-                while (j >= 0 && solves[j].Marker.Priority < current.Marker.Priority)
+                while (j >= 0 && entries[j].Marker.Priority < current.Marker.Priority)
                 {
-                    solves[j + 1] = solves[j];
+                    entries[j + 1] = entries[j];
                     j--;
                 }
 
-                solves[j + 1] = current;
+                entries[j + 1] = current;
             }
         }
 
@@ -254,11 +364,13 @@ namespace LiminalLabs.Atlas
             public readonly IAtlasProjection Projection;
             public readonly IAtlasPresenter Presenter;
             public readonly List<AtlasSolve> Solves = new List<AtlasSolve>();
+            public readonly int MaxMarkers;
 
-            public Output(IAtlasProjection projection, IAtlasPresenter presenter)
+            public Output(IAtlasProjection projection, IAtlasPresenter presenter, int maxMarkers)
             {
                 Projection = projection;
                 Presenter = presenter;
+                MaxMarkers = maxMarkers;
             }
         }
 
