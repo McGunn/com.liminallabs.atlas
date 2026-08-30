@@ -88,7 +88,7 @@ registry.
 | `Console/` | optional — needs `com.liminallabs.core` |
 | `Editor/` | Setup and Validation checks; optional, needs core |
 | `Tests/` | the §7 acceptance suite |
-| `Samples~/AtlasM0/` | the milestone, in one scene |
+| `Samples~/Atlas M0/` | the milestone, in one scene |
 
 A projection lives with the presenter that consumes it — they are the two halves of one
 output, and nothing but the compass needs world-to-bearing.

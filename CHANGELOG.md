@@ -39,7 +39,7 @@ from the same solve — including the case where it is behind you.
   `com.liminallabs.core` and neither reachable from the runtime assembly.
 - Marker gizmos: position, anchor line and cull radius, so a marker on an object with no
   renderer is findable without pressing play.
-- `Samples~/AtlasM0` — the milestone in one scene, with Tab showing the raw solve beside
+- `Samples~/Atlas M0` — the milestone in one scene, with Tab showing the raw solve beside
   the views drawing it. Import the sample before looking for its menu item; Unity does not
   compile `Samples~` until then.
 

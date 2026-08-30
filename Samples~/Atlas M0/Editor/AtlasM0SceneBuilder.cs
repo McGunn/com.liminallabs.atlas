@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -6,9 +7,10 @@ using UnityEngine.UI;
 namespace LiminalLabs.Atlas.SampleM0.Editor
 {
     /// <summary>
-    /// Builds the M0 sample scene.
+    /// Builds the M0 sample scene and saves it into the sample folder, so it lands
+    /// beside the other Liminal Labs demos as a real asset you can reopen.
     ///
-    /// A builder rather than a committed <c>.unity</c> file, for two reasons. A generated
+    /// A builder rather than a hand-authored scene, for two reasons. A generated
     /// scene cannot carry a stale GUID to an asset that moved, which is how sample scenes
     /// usually rot. And the build code is readable documentation of exactly what wiring
     /// the package needs — which, since presenters register themselves, is a registry, a
@@ -19,6 +21,20 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
         [MenuItem("Window/Liminal Labs/Atlas/Build M0 Sample Scene", priority = 300)]
         public static void Build()
         {
+            // Resolved before the new scene replaces the open one. If the sample cannot be
+            // located there is nowhere to save the result, and throwing away someone's open
+            // scene to build something that then exists only in memory is not a trade worth
+            // making.
+            string folder = SampleFolder();
+            if (folder == null)
+            {
+                EditorUtility.DisplayDialog("Atlas M0",
+                    "Could not locate the sample folder from this script's own position." + "\n\n" +
+                    "Link it with Window > Liminal Labs > Developer > Link Samples for " +
+                    "Editing, or import it from the Package Manager.", "OK");
+                return;
+            }
+
             UnityEngine.SceneManagement.Scene scene =
                 EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
@@ -55,16 +71,48 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             Selection.activeGameObject = registryObject;
-            EditorSceneManager.MarkSceneDirty(scene);
+
+            string scenePath = folder + "/Atlas_M0.unity";
+            EditorSceneManager.SaveScene(scene, scenePath);
+            AssetDatabase.Refresh();
 
             Debug.Log(
-                "[Atlas M0] Scene built. Press play, hold right mouse to look, Tab for the readout.\n" +
+                "[Atlas M0] Scene saved to " + scenePath + ".\n" +
+                "Press play, hold right mouse to look, Tab for the readout.\n" +
                 "Watch the orbiting marker pass behind you: which end of the bar it leaves, and " +
                 "which screen edge its icon pins to.\n" +
                 "For a single-view scene, delete 'Compass Bar' or 'Screen Indicators' - the " +
                 "presenters register themselves, so removing one changes nothing else.\n" +
                 "No icons are assigned, so markers draw as tinted blanks; assign an " +
                 "AtlasSpriteIcons asset on the presenters to see sprites.");
+        }
+
+        /// <summary>
+        /// Where this sample actually lives, which is not knowable in advance.
+        ///
+        /// A package developer reaches it through the junction that
+        /// <c>Window > Liminal Labs > Developer > Link Samples for Editing</c> creates at
+        /// <c>Assets/LiminalLabsSamples/com.liminallabs.atlas/Atlas M0</c>, and a scene
+        /// saved through that junction lands in the package repository. That is how the
+        /// other Liminal Labs demos come to ship a committed scene. A consumer imports the
+        /// sample instead and gets <c>Assets/Samples/Liminal Labs Atlas/[version]/Atlas M0</c>.
+        ///
+        /// Asking the AssetDatabase where this script sits covers both, and cannot go stale
+        /// the way a hardcoded path does the moment a display name or a version changes.
+        /// </summary>
+        private static string SampleFolder()
+        {
+            foreach (string guid in AssetDatabase.FindAssets("AtlasM0SceneBuilder t:MonoScript"))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.EndsWith("/Editor/AtlasM0SceneBuilder.cs")) continue;
+
+                // .../Atlas M0/Editor/AtlasM0SceneBuilder.cs  ->  .../Atlas M0
+                string editorFolder = Path.GetDirectoryName(path).Replace('\\', '/');
+                return Path.GetDirectoryName(editorFolder).Replace('\\', '/');
+            }
+
+            return null;
         }
 
         private static Canvas BuildCanvas()
