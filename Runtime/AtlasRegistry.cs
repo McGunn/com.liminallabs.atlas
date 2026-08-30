@@ -212,7 +212,7 @@ namespace LiminalLabs.Atlas
                 Output output = outputs[i];
 
                 output.Solves.Clear();
-                output.Projection.Solve(viewer, candidates, output.Solves);
+                output.Projection.Solve(viewer, Spaces, candidates, output.Solves);
 
                 SortByPriority(output.Solves);
 

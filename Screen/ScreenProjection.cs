@@ -11,7 +11,8 @@ namespace LiminalLabs.Atlas
         /// "on screen" and "clamped to the edge" while it sits on the boundary.</summary>
         public float EdgeMargin = 0.05f;
 
-        public void Solve(in AtlasViewer viewer, IReadOnlyList<IAtlasTrackable> targets,
+        public void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
+                          IReadOnlyList<IAtlasTrackable> targets,
                           List<AtlasSolve> into)
         {
             for (int i = 0; i < targets.Count; i++)

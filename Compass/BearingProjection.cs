@@ -6,7 +6,8 @@ namespace LiminalLabs.Atlas
     /// <summary>World to a signed bearing. What a compass bar needs and nothing else.</summary>
     public sealed class BearingProjection : IAtlasProjection
     {
-        public void Solve(in AtlasViewer viewer, IReadOnlyList<IAtlasTrackable> targets,
+        public void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
+                          IReadOnlyList<IAtlasTrackable> targets,
                           List<AtlasSolve> into)
         {
             // Indexed rather than foreach: iterating an IReadOnlyList<T> with foreach

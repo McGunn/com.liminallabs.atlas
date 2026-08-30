@@ -1,26 +1,21 @@
 {
-    "name": "LiminalLabs.Atlas.Tests",
-    "rootNamespace": "LiminalLabs.Atlas",
+    "name": "LiminalLabs.Atlas.SampleM1",
+    "rootNamespace": "LiminalLabs.Atlas.SampleM1",
     "references": [
         "LiminalLabs.Atlas",
         "LiminalLabs.Atlas.Compass",
         "LiminalLabs.Atlas.Screen",
         "LiminalLabs.Atlas.Map",
-        "UnityEngine.TestRunner",
-        "LiminalLabs.Core",
+        "Unity.InputSystem",
         "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": true,
-    "precompiledReferences": [
-        "nunit.framework.dll"
-    ],
+    "overrideReferences": false,
+    "precompiledReferences": [],
     "autoReferenced": false,
-    "defineConstraints": [
-        "UNITY_INCLUDE_TESTS"
-    ],
+    "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false
 }

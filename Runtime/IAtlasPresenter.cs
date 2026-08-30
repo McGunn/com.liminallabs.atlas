@@ -42,6 +42,11 @@ namespace LiminalLabs.Atlas
         /// Solve every target into <paramref name="into"/>, which arrives cleared and is
         /// reused between frames.
         /// </summary>
-        void Solve(in AtlasViewer viewer, IReadOnlyList<IAtlasTrackable> targets, List<AtlasSolve> into);
+        /// <param name="spaces">The registry's spaces. A bearing or a screen point needs
+        /// none of this; a map point is a position <i>on a plane</i>, and the plane is the
+        /// space's. Passed rather than reached for, so a projection stays a function of
+        /// what it is handed.</param>
+        void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
+                   IReadOnlyList<IAtlasTrackable> targets, List<AtlasSolve> into);
     }
 }

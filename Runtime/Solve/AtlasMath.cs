@@ -20,7 +20,14 @@ namespace LiminalLabs.Atlas
     /// </summary>
     public static class AtlasMath
     {
-        private const float Epsilon = 1e-6f;
+        /// <summary>
+        /// The threshold below which a length is treated as zero.
+        ///
+        /// Public because <see cref="AtlasMapFrame"/> clamps its radius against it, and a
+        /// second constant that happened to differ would be a bug nobody would find: two
+        /// pieces of the same solve disagreeing about what counts as zero.
+        /// </summary>
+        public const float Epsilon = 1e-6f;
 
         /// <summary>
         /// Signed horizontal angle from the viewer's facing to a target, in degrees.
@@ -208,5 +215,93 @@ namespace LiminalLabs.Atlas
         /// </summary>
         public static float DistanceScale(float fade, float minScale, float maxScale) =>
             Mathf.LerpUnclamped(minScale, maxScale, Mathf.Clamp01(fade));
+
+        // ---- the map plane ---------------------------------------------------
+
+        /// <summary>
+        /// Rotates a map-plane offset counter-clockwise.
+        ///
+        /// Its own function because both the marker placement and the background image
+        /// have to turn by exactly the same amount, and a minimap whose icons and terrain
+        /// rotate by angles that differ by a sign is the single most disorienting way this
+        /// can be wrong.
+        /// </summary>
+        public static Vector2 RotateMap(Vector2 offset, float degrees)
+        {
+            if (degrees == 0f) return offset;
+
+            float radians = degrees * Mathf.Deg2Rad;
+            float cos = Mathf.Cos(radians);
+            float sin = Mathf.Sin(radians);
+
+            return new Vector2(offset.x * cos - offset.y * sin,
+                               offset.x * sin + offset.y * cos);
+        }
+
+        /// <summary>
+        /// Where a map-plane position sits inside a frame, as a fraction.
+        ///
+        /// (0.5, 0.5) is the centre of the view, (0, 0) its bottom-left corner and (1, 1)
+        /// its top-right - the same convention <see cref="Viewport"/> uses, so a presenter
+        /// that can place a screen indicator can place a map marker with the same
+        /// arithmetic and the same off-by-a-pivot mistakes are impossible in one but not
+        /// the other.
+        ///
+        /// Values outside 0..1 are outside the frame, and are returned rather than clamped:
+        /// how far outside is what decides between hiding a marker and pinning it to the
+        /// edge, and that is the presenter's decision.
+        /// </summary>
+        public static Vector2 MapPoint(in AtlasMapFrame frame, Vector2 mapPosition)
+        {
+            Vector2 offset = RotateMap(mapPosition - frame.Centre, frame.Rotation);
+            float span = frame.Span;
+
+            return new Vector2(offset.x / span + 0.5f, offset.y / span + 0.5f);
+        }
+
+        /// <summary>
+        /// How far a map position is from the frame's centre, as a fraction of the radius.
+        ///
+        /// 1 is exactly on the circle that fits inside a square frame. A round minimap
+        /// clips on this rather than on the rectangular bounds, which is why it is a
+        /// separate number and not something a presenter should infer from
+        /// <see cref="MapPoint"/> - inferring it is how a round map ends up showing corners.
+        /// </summary>
+        public static float MapRadiusFraction(in AtlasMapFrame frame, Vector2 mapPosition) =>
+            (mapPosition - frame.Centre).magnitude / frame.Radius;
+
+        /// <summary>
+        /// Pins a map point to the edge of a round frame, keeping its direction.
+        ///
+        /// The minimap counterpart of <see cref="ClampToEdge"/>, and deliberately not the
+        /// same function: a screen clamps to a rectangle and a round minimap clamps to a
+        /// circle, and using the rectangle for both is what makes markers bunch at the
+        /// diagonals of a map that is visibly round.
+        /// </summary>
+        /// <param name="angle">Degrees, 0 pointing right, for an edge arrow.</param>
+        public static Vector2 ClampToCircle(Vector2 mapPoint, float margin, out float angle)
+        {
+            margin = Mathf.Clamp(margin, 0f, 0.49f);
+
+            var centre = new Vector2(0.5f, 0.5f);
+            Vector2 direction = mapPoint - centre;
+
+            // Dead centre: there is no direction to pin along, and a marker on top of the
+            // viewer is not off the edge anyway.
+            if (direction.sqrMagnitude < Epsilon * Epsilon)
+            {
+                angle = 0f;
+                return centre;
+            }
+
+            angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+
+            float limit = 0.5f - margin;
+            float length = direction.magnitude;
+            if (length <= limit) return mapPoint;
+
+            return centre + direction * (limit / length);
+        }
+
     }
 }

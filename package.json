@@ -1,6 +1,6 @@
 {
   "name": "com.liminallabs.atlas",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "Liminal Labs Atlas",
   "description": "Knowing where things are: a compass bar and on-screen indicators from one registration, over a registry that already models map spaces. One solve, several views, each in its own assembly. Namespace LiminalLabs.Atlas. Compass letters and distance labels need a one-time Window > TextMeshPro > Import TMP Essential Resources; everything else works without it.",
   "unity": "6000.0",
@@ -16,6 +16,11 @@
       "displayName": "Atlas M0",
       "description": "The milestone: one registration per marker, on the compass bar AND as an on-screen indicator, including behind you. Three entry points, and Tab shows the raw solve behind the pixels. Import, then Window > Liminal Labs > Atlas > Build M0 Sample Scene.",
       "path": "Samples~/Atlas M0"
+    },
+    {
+      "displayName": "Atlas M1",
+      "description": "The map milestone: a minimap that follows and turns, and a world map that does neither - the same projection with two framings, fed by the same registrations as the compass and the on-screen indicators. WASD, right mouse to look, M for the world map. Import, then Window > Liminal Labs > Atlas > Build M1 Sample Scene.",
+      "path": "Samples~/Atlas M1"
     }
   ]
 }

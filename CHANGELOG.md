@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.3.0] — M1, the map
+
+A map is not a texture. It is a plane with a world transform, which is what the space
+model has carried since M0 and what this milestone finally spends.
+
+### Added
+
+- **`MapProjection`** — the third projection. World positions onto a space's plane,
+  framed for one view.
+
+  **A minimap and a world map are two instances of it**, differing only in `Centre`,
+  `Radius` and `Rotation`. That is the design's central claim about maps, and it is what
+  stops one objective being registered twice, drawn by two code paths, and drifting apart
+  on which one knows it was completed. `AtlasMapCentre.SpaceBounds` frames a whole space
+  with no authored numbers, because the space already knows how big it is.
+
+- **`MinimapPresenter`** — one component for both. Round or square, pinning outside
+  markers to a circle or a rect, panning and rotating the space's image beneath them, and
+  a viewer arrow that turns on a north-up map and stays put on a viewer-up one — all of it
+  falling out of the frame's own rotation rather than a second look at the camera.
+
+- **`AtlasMapFrame`** and the maths under it: `MapPoint`, `MapRadiusFraction`,
+  `RotateMap`, `ClampToCircle`. Pure, so the framing, the rotation sign and the circular
+  pinning are all tested with no scene — **ten new assertions, run outside the engine**.
+
+- **The Atlas M1 sample**: compass, indicators, minimap and world map on one screen, from
+  one set of registrations. Hold M and watch the same markers reframe.
+
+- Map checks in Setup and Validation, including the two that cost real time: a round map
+  on a non-square rect (a circle in fractions is only a circle when the rect is square),
+  and a map with nothing clipping it.
+
+### Changed
+
+- **`IAtlasProjection.Solve` now receives the space registry.** A bearing and a screen
+  point need none of it; a map point is a position *on a plane*, and the plane is the
+  space's. Passed rather than reached for, so a projection stays a function of what it is
+  handed.
+
+
 ## [0.2.0] — the compass grows up
 
 ### Added — the compass, from a year of shipped iteration

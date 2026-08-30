@@ -313,5 +313,116 @@ namespace LiminalLabs.Atlas.Tests
             Assert.AreEqual(1.0f, AtlasMath.DistanceScale(0.5f, 0.8f, 1.2f), 0.0001f);
         }
 
+
+        // ---- the map plane (M1) ----------------------------------------------
+
+        private static AtlasMapFrame Frame(float radius = 50f, float rotation = 0f) =>
+            new AtlasMapFrame(Vector2.zero, radius, rotation);
+
+        [Test]
+        public void TheFrameCentreIsTheMiddleOfTheMap()
+        {
+            Vector2 at = AtlasMath.MapPoint(Frame(), Vector2.zero);
+            Assert.AreEqual(0.5f, at.x, 0.0001f);
+            Assert.AreEqual(0.5f, at.y, 0.0001f);
+        }
+
+        /// <summary>
+        /// The frame's radius is a half-span: a radius of 50 shows 100 across, so a point
+        /// 50 north of the centre is at the top edge rather than halfway to it.
+        /// </summary>
+        [Test]
+        public void TheRadiusIsAHalfSpan()
+        {
+            Vector2 at = AtlasMath.MapPoint(Frame(50f), new Vector2(0f, 50f));
+            Assert.AreEqual(0.5f, at.x, 0.0001f);
+            Assert.AreEqual(1f, at.y, 0.0001f, "50 units on a radius of 50 is the top edge");
+        }
+
+        [Test]
+        public void MapDirectionsAreNotMirrored()
+        {
+            AtlasMapFrame frame = Frame(50f);
+
+            Assert.Greater(AtlasMath.MapPoint(frame, new Vector2(10f, 0f)).x, 0.5f, "east is right");
+            Assert.Less(AtlasMath.MapPoint(frame, new Vector2(-10f, 0f)).x, 0.5f, "west is left");
+            Assert.Greater(AtlasMath.MapPoint(frame, new Vector2(0f, 10f)).y, 0.5f, "north is up");
+            Assert.Less(AtlasMath.MapPoint(frame, new Vector2(0f, -10f)).y, 0.5f, "south is down");
+        }
+
+        /// <summary>
+        /// Rotating the frame by 90 degrees moves a point that was north to the west of
+        /// the map. This is the sign that makes a viewer-up minimap turn the right way,
+        /// and getting it backwards reads as inverted controls rather than as a bug.
+        /// </summary>
+        [Test]
+        public void RotatingTheFrameTurnsTheMapCounterClockwise()
+        {
+            Vector2 at = AtlasMath.MapPoint(Frame(50f, 90f), new Vector2(0f, 25f));
+
+            Assert.Less(at.x, 0.5f, "a point to the north swings to the left");
+            Assert.AreEqual(0.5f, at.y, 0.0001f);
+        }
+
+        [Test]
+        public void RotateMapIsAPlainCounterClockwiseTurn()
+        {
+            Vector2 turned = AtlasMath.RotateMap(new Vector2(1f, 0f), 90f);
+            Assert.AreEqual(0f, turned.x, 0.0001f);
+            Assert.AreEqual(1f, turned.y, 0.0001f);
+        }
+
+        [Test]
+        public void TheRadiusFractionIsOneAtTheEdge()
+        {
+            Assert.AreEqual(1f, AtlasMath.MapRadiusFraction(Frame(50f), new Vector2(50f, 0f)), 0.0001f);
+            Assert.AreEqual(2f, AtlasMath.MapRadiusFraction(Frame(50f), new Vector2(0f, 100f)), 0.0001f);
+            Assert.AreEqual(0f, AtlasMath.MapRadiusFraction(Frame(50f), Vector2.zero), 0.0001f);
+        }
+
+        /// <summary>
+        /// A round map clamps to a circle. Clamping it to the rectangle instead is what
+        /// makes markers bunch at the diagonals of a map that is visibly round - it looks
+        /// like a spacing bug rather than the wrong shape.
+        /// </summary>
+        [Test]
+        public void ARoundMapPinsToItsCircleNotItsCorners()
+        {
+            // Diagonally out: both axes past the edge by the same amount.
+            Vector2 pinned = AtlasMath.ClampToCircle(new Vector2(1.5f, 1.5f), 0f, out float angle);
+
+            Assert.AreEqual(0.5f, (pinned - new Vector2(0.5f, 0.5f)).magnitude, 0.0001f,
+                "on the circle, not in a corner");
+            Assert.AreEqual(45f, angle, 0.01f, "and the arrow still points at it");
+        }
+
+        [Test]
+        public void APointInsideTheCircleIsLeftAlone()
+        {
+            var inside = new Vector2(0.55f, 0.52f);
+            Assert.AreEqual(inside, AtlasMath.ClampToCircle(inside, 0f, out _));
+        }
+
+        /// <summary>Dead centre has no direction to pin along, and a marker on top of the
+        /// viewer is not off the edge anyway.</summary>
+        [Test]
+        public void AMarkerOnTopOfTheViewerStaysAtTheCentre()
+        {
+            Vector2 at = AtlasMath.ClampToCircle(new Vector2(0.5f, 0.5f), 0.1f, out float angle);
+            Assert.AreEqual(0.5f, at.x, 0.0001f);
+            Assert.AreEqual(0.5f, at.y, 0.0001f);
+            Assert.AreEqual(0f, angle, 0.0001f);
+        }
+
+        /// <summary>A zero radius would divide by zero and put every marker at the centre,
+        /// which reads as a broken map rather than as a bad number.</summary>
+        [Test]
+        public void AZeroRadiusFrameDoesNotCollapseTheMap()
+        {
+            var frame = new AtlasMapFrame(Vector2.zero, 0f);
+            Assert.Greater(frame.Radius, 0f);
+            Assert.IsFalse(float.IsNaN(AtlasMath.MapPoint(frame, new Vector2(1f, 1f)).x));
+        }
+
     }
 }

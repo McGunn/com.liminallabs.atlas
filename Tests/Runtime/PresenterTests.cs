@@ -117,6 +117,7 @@ namespace LiminalLabs.Atlas.Tests
 
             if (component is BarPresenter bar) bar.SelfRegister = false;
             else if (component is ScreenPresenter screen) screen.SelfRegister = false;
+            else if (component is MinimapPresenter map) map.SelfRegister = false;
 
             go.SetActive(true);
             return component;
@@ -659,6 +660,149 @@ namespace LiminalLabs.Atlas.Tests
             Assert.Greater(b.x, 960f, "a target to the right draws right of centre");
             Assert.Greater(b.y, 540f, "a target above draws above centre");
         }
+
+
+        // ---- M1: the map ------------------------------------------------------
+
+        /// <summary>
+        /// One registration, three views, one frame.
+        ///
+        /// Test 20 extended to the map. The claim the package is built on is that a
+        /// compass, an on-screen indicator and a map are outputs of one system rather than
+        /// three systems that agree today, and adding a third view is the moment that
+        /// claim is either true or was only ever true for two.
+        /// </summary>
+        [Test]
+        public void OneRegistrationDrivesAllThreeViews()
+        {
+            BarPresenter bar = Spawn<BarPresenter>();
+            ScreenPresenter screen = Spawn<ScreenPresenter>(1920f, 1080f);
+            MinimapPresenter map = Spawn<MinimapPresenter>(300f, 300f);
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+            registry.AddProjection(new ScreenProjection(), screen);
+            registry.AddProjection(map.Projection, map);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 20f) });
+            registry.Tick(Viewer());
+
+            Assert.AreEqual(1, bar.VisibleCount, "on the compass");
+            Assert.AreEqual(1, screen.VisibleCount, "and on screen");
+            Assert.AreEqual(1, map.VisibleCount, "and on the map, from that same registration");
+        }
+
+        /// <summary>
+        /// The map keeps its directions: north of the viewer draws above the centre.
+        ///
+        /// The same assertion the on-screen indicators went eight versions without, and
+        /// the reason they were half a screen out the whole time.
+        /// </summary>
+        [Test]
+        public void TheMapKeepsItsDirections()
+        {
+            MinimapPresenter map = Spawn<MinimapPresenter>(300f, 300f);
+            map.Projection.Rotation = AtlasMapRotation.NorthUp;
+            map.Projection.Radius = 50f;
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(map.Projection, map);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 20f) });    // north
+            registry.Register(new Fake { At = new Vector3(20f, 0f, 0f) });    // east
+            registry.Tick(Viewer());
+
+            Vector2 north = map.VisiblePosition(0);
+            Vector2 east = map.VisiblePosition(1);
+
+            Assert.Greater(north.y, 150f, "north of the viewer draws above the centre");
+            Assert.AreEqual(150f, north.x, 2f, "and directly above it");
+            Assert.Greater(east.x, 150f, "east draws right of the centre");
+        }
+
+        /// <summary>Every marker lands inside the map rect - the bound whose absence let
+        /// the screen indicators sit half a screen out.</summary>
+        [Test]
+        public void EveryMapMarkerLandsInsideTheMap()
+        {
+            MinimapPresenter map = Spawn<MinimapPresenter>(300f, 300f);
+            map.Projection.Radius = 40f;
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(map.Projection, map);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 10f) });     // inside
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 100f) });    // far outside
+            registry.Register(new Fake { At = new Vector3(-90f, 0f, -90f) });  // outside, diagonal
+            registry.Tick(Viewer());
+
+            Assert.AreEqual(3, map.VisibleCount, "outside markers pin rather than vanish");
+
+            for (int i = 0; i < 3; i++)
+            {
+                Vector2 at = map.VisiblePosition(i);
+                Assert.GreaterOrEqual(at.x, 0f, "marker " + i);
+                Assert.LessOrEqual(at.x, 300f, "marker " + i);
+                Assert.GreaterOrEqual(at.y, 0f, "marker " + i);
+                Assert.LessOrEqual(at.y, 300f, "marker " + i);
+            }
+        }
+
+        /// <summary>
+        /// A round map pins to its circle.
+        ///
+        /// Every pinned marker sits the same distance from the centre. Clamping to the
+        /// rect instead lets diagonal markers sit further out than orthogonal ones, which
+        /// on round art reads as markers escaping the map.
+        /// </summary>
+        [Test]
+        public void ARoundMapPinsEveryOutsideMarkerToOneRadius()
+        {
+            MinimapPresenter map = Spawn<MinimapPresenter>(300f, 300f);
+            map.Projection.Radius = 20f;
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(map.Projection, map);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 60f) });     // straight out
+            registry.Register(new Fake { At = new Vector3(42f, 0f, 42f) });    // diagonally out
+            registry.Tick(Viewer());
+
+            var centre = new Vector2(150f, 150f);
+            float first = (map.VisiblePosition(0) - centre).magnitude;
+            float second = (map.VisiblePosition(1) - centre).magnitude;
+
+            Assert.AreEqual(first, second, 0.5f, "both pinned to the same circle");
+        }
+
+        /// <summary>
+        /// A viewer-up map turns the right way.
+        ///
+        /// Facing east, something to the north has to appear on the left. Backwards here
+        /// produces a minimap that reads as inverted controls, and it is one sign away at
+        /// every moment.
+        /// </summary>
+        [Test]
+        public void AViewerUpMapTurnsTheRightWay()
+        {
+            MinimapPresenter map = Spawn<MinimapPresenter>(300f, 300f);
+            map.Projection.Rotation = AtlasMapRotation.ViewerUp;
+            map.Projection.Radius = 50f;
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(map.Projection, map);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 20f) });     // due north
+            registry.Tick(ViewerFacingEast());
+
+            Assert.Less(map.VisiblePosition(0).x, 145f,
+                "facing east, north is on your left");
+        }
+
+        /// <summary>A viewer looking east, built the same way as <see cref="Viewer"/>.</summary>
+        private static AtlasViewer ViewerFacingEast() =>
+            new AtlasViewer(Vector3.zero, Vector3.right, Vector3.up, Vector3.back,
+                60f, 16f / 9f, ViewProjection(), AtlasSpaceId.Default);
 
     }
 }
