@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.4.0] — M2, M3, M4 and M5
+
+Baking first, because pan and zoom over an empty rectangle is less of a map than a
+picture of the world with nothing moveable on it.
+
+### Added — M3, baking
+
+- **`AtlasBaker`** renders a space top-down into the image the maps draw under their
+  markers. Baking is an *editor render of a space's bounds*, which is why the design put
+  it behind the space model: a map image is a picture of a volume the system already
+  knows, not a new thing to author and keep aligned.
+
+  The property that has to hold exactly is that the image covers the bounds corner to
+  corner — the presenter turns a frame into a uv window by dividing by them, and the reveal
+  mask is indexed the same way. So the texture takes the bounds aspect rather than being
+  squared off, and the camera is orthographic: a perspective one would lean tall things
+  outward and a marker on a roof would not sit over its building.
+
+- A space inspector with a bake button and the number that decides whether a bake is worth
+  waiting for — **units per pixel**. At 4 units a pixel a doorway is invisible, which is
+  much better learned before the render than after.
+
+### Added — M2, crowding
+
+- **`AtlasFilter`**: kinds as a bitmask plus an importance floor, applied *in the
+  projection*. Filtering after the registry has truncated to `MaxMarkers` would show
+  whatever survived a priority cut against every other kind, rather than the nearest
+  markers of the kind asked for.
+- **`MinimapPresenter.AutoImportanceLod`** — the importance floor scales with the frame
+  span, so a continent shows its cities and a street shows its shops. Off by default,
+  because a project that authored no importance would watch its markers vanish and have no
+  idea why.
+- Unticking a legend last checkbox shows everything again rather than nothing. An empty
+  selection meaning nothing leaves the user staring at a blank map wondering what broke.
+
+### Added — M4, discovery
+
+- **`AtlasReveal`**: a bit per cell over the space bounds. 256x256 is 8 KB, a size a save
+  can carry per space without anyone negotiating. Pure — the whole of discovery is tested
+  with no scene.
+- **`AtlasDiscovery`** fills it in behind the viewer, on a timer *and* on distance moved,
+  doing nothing at all while the viewer stands still. A fog system that costs measurable
+  frame time is one a studio turns off.
+- `MapProjection.HideUndiscovered`, off by default — a compass should keep pointing at a
+  quest marker it was told about even where the player has not walked.
+
+### Added — M5, bridges and the board
+
+- **`LiminalLabs.Atlas.Save`**, gated on `LIMINAL_SAVE` so Atlas never depends on the save
+  package. It persists **the reveal mask and nothing else**: markers are registered by
+  whatever owns them, and a marker restored by the atlas would be a second copy of state
+  fighting the first. A saved mask whose dimensions do not match is *refused*, because
+  stretching one from an older map reveals the wrong places.
+- **The Atlas Board** (`Window > Liminal Labs > Atlas > Atlas Board`) — the registry live
+  while the game runs: spaces, bounds, images, discovery percentage with reveal buttons,
+  view counts, and every marker bearing and distance solved against the live viewer.
+
+  Solved in the window rather than read out of a presenter pool, deliberately: the pool is
+  the thing under suspicion whenever anyone opens this. Running the same pure functions on
+  the same viewer is what separates a maths bug from a drawing bug, which is the question
+  every bug in this package has turned on.
+
+
 ## [0.3.1] — spaces you can actually author
 
 ### Fixed

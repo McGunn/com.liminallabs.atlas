@@ -461,5 +461,139 @@ namespace LiminalLabs.Atlas.Tests
             Assert.Less(origin.x, 0.5f, "and the old centre has moved left by the pan");
         }
 
+
+        // ---- M4: discovery ----------------------------------------------------
+
+        [Test]
+        public void ANewRevealMaskHidesEverythingInside()
+        {
+            var reveal = new AtlasReveal(32, 32);
+
+            Assert.IsFalse(reveal.IsRevealed(0, 0));
+            Assert.IsFalse(reveal.IsRevealed(31, 31));
+            Assert.AreEqual(0f, reveal.RevealedFraction(), 0.0001f);
+        }
+
+        /// <summary>Outside the mask reads as revealed: outside the map is not somewhere
+        /// anyone needs to explore, and reading it as fogged would put permanent fog around
+        /// every edge.</summary>
+        [Test]
+        public void OutsideTheMaskIsNotFogged()
+        {
+            var reveal = new AtlasReveal(16, 16);
+
+            Assert.IsTrue(reveal.IsRevealed(-1, 0));
+            Assert.IsTrue(reveal.IsRevealed(16, 0));
+            Assert.IsTrue(reveal.IsRevealed(0, 99));
+        }
+
+        [Test]
+        public void RevealingUncoversADiscAndCountsIt()
+        {
+            var reveal = new AtlasReveal(64, 64);
+
+            int first = reveal.Reveal(new Vector2(0.5f, 0.5f), 0.1f);
+            Assert.Greater(first, 0, "something was uncovered");
+            Assert.IsTrue(reveal.IsRevealed(32, 32), "the centre most of all");
+
+            // Revealing the same disc again uncovers nothing new, which is what a game
+            // awarding exploration has to be able to rely on.
+            int second = reveal.Reveal(new Vector2(0.5f, 0.5f), 0.1f);
+            Assert.AreEqual(0, second);
+        }
+
+        [Test]
+        public void RevealingLeavesTheFarSideAlone()
+        {
+            var reveal = new AtlasReveal(64, 64);
+            reveal.Reveal(new Vector2(0.1f, 0.1f), 0.05f);
+
+            Assert.IsFalse(reveal.IsRevealed(60, 60), "the opposite corner is still dark");
+            Assert.Less(reveal.RevealedFraction(), 0.2f);
+        }
+
+        [Test]
+        public void RevealAllAndClearAreOpposites()
+        {
+            var reveal = new AtlasReveal(16, 16);
+
+            reveal.RevealAll();
+            Assert.AreEqual(1f, reveal.RevealedFraction(), 0.0001f);
+
+            reveal.Clear();
+            Assert.AreEqual(0f, reveal.RevealedFraction(), 0.0001f);
+        }
+
+        /// <summary>
+        /// A saved mask whose size does not match is refused.
+        ///
+        /// That is what a save from an older map layout looks like, and silently accepting
+        /// it would reveal the wrong parts of the world - which reads as a corrupt save
+        /// rather than as a changed map.
+        /// </summary>
+        [Test]
+        public void ASavedMaskOfTheWrongSizeIsRefused()
+        {
+            var reveal = new AtlasReveal(32, 32);
+            reveal.RevealAll();
+
+            Assert.IsFalse(reveal.Restore(64, 64, new byte[8]), "wrong byte count");
+            Assert.IsFalse(reveal.Restore(32, 32, null), "no data");
+            Assert.IsTrue(reveal.Restore(16, 16, new byte[32]), "16x16 is 32 bytes");
+            Assert.AreEqual(16, reveal.Width);
+        }
+
+        // ---- M2: filters and LOD ----------------------------------------------
+
+        [Test]
+        public void AnUnfilteredFilterAllowsEverything()
+        {
+            AtlasFilter filter = AtlasFilter.All;
+
+            Assert.IsTrue(filter.IsUnfiltered);
+            Assert.IsTrue(filter.Allows(AtlasMarker.Point("anything")));
+            Assert.IsTrue(filter.AllowsKind(AtlasMarkerKind.FastTravel));
+        }
+
+        [Test]
+        public void SelectingKindsExcludesTheRest()
+        {
+            AtlasFilter filter = AtlasFilter.Only(AtlasMarkerKind.FastTravel)
+                                            .Including(AtlasMarkerKind.Objective);
+
+            Assert.IsTrue(filter.AllowsKind(AtlasMarkerKind.FastTravel));
+            Assert.IsTrue(filter.AllowsKind(AtlasMarkerKind.Objective));
+            Assert.IsFalse(filter.AllowsKind(AtlasMarkerKind.Hostile));
+            Assert.IsFalse(filter.IsUnfiltered);
+        }
+
+        /// <summary>Unticking the last box shows everything again, which is what a legend's
+        /// checkboxes want - an empty selection meaning "nothing" leaves the user staring
+        /// at a blank map wondering what they broke.</summary>
+        [Test]
+        public void UntickingTheLastKindShowsEverythingAgain()
+        {
+            AtlasFilter filter = AtlasFilter.Only(AtlasMarkerKind.Hostile)
+                                            .Excluding(AtlasMarkerKind.Hostile);
+
+            Assert.IsTrue(filter.IsUnfiltered);
+            Assert.IsTrue(filter.AllowsKind(AtlasMarkerKind.Ally));
+        }
+
+        [Test]
+        public void TheImportanceFloorIsTheZoomLod()
+        {
+            AtlasFilter filter = AtlasFilter.All.AtImportance(0.5f);
+
+            var city = AtlasMarker.Point("city");
+            city.Importance = 1f;
+
+            var shop = AtlasMarker.Point("shop");
+            shop.Importance = 0.1f;
+
+            Assert.IsTrue(filter.Allows(city), "a city survives zooming out");
+            Assert.IsFalse(filter.Allows(shop), "a shop does not");
+        }
+
     }
 }

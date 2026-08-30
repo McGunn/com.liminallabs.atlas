@@ -86,6 +86,7 @@ registry.
 | `Compass/` | `LiminalLabs.Atlas.Compass` — `BearingProjection`, `BarPresenter`, cardinal letters. Needs core. |
 | `Screen/` | `LiminalLabs.Atlas.Screen` — `ScreenProjection` + `ScreenPresenter`. Needs core. |
 | `Map/` | `LiminalLabs.Atlas.Map` — `MapProjection` + `MinimapPresenter`, minimap **and** world map. Needs core. |
+| `Save/` | `LiminalLabs.Atlas.Save` - persists discovery. Optional, gated `LIMINAL_SAVE`. |
 | `Console/` | optional — needs `com.liminallabs.core` |
 | `Editor/` | Setup and Validation checks; optional, needs core |
 | `Tests/` | the §7 acceptance suite |
@@ -204,11 +205,11 @@ can see, never a blank frame.
 
 ## Not built
 
-Pan, zoom, importance LOD, legend and filters (M2) — `Importance` exists on the marker
-and is unused, and `MapProjection.FixedCentre` plus `Radius` are already the two things
-pan and zoom will move. Baking (M3) — a space's `Image` is drawn if you assign one, but
-nothing renders it for you yet. Discovery and fog (M4). Save, content and TMP bridges, and
-the Atlas Board (M5).
+A legend UI — `AtlasFilter` is the model behind one and a game's own checkboxes write to
+it, but no prefab ships. A fog *shader*: `AtlasReveal` is the data and it is exact;
+drawing it softly is the presenter's business. A content bridge, for markers from
+`com.liminallabs.content` defs. Marker clustering at extreme zoom, which importance LOD
+mostly makes unnecessary.
 
 No Addressables, in any milestone.
 

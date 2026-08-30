@@ -77,6 +77,16 @@ namespace LiminalLabs.Atlas
         [SerializeField] private AtlasMapCentre centre = AtlasMapCentre.Viewer;
         [SerializeField] private AtlasMapRotation rotation = AtlasMapRotation.ViewerUp;
 
+        [Header("Crowding")]
+        [Tooltip("Hide low-importance markers as the map zooms out. Off by default, " +
+                 "because a project that authored no importance would watch its markers " +
+                 "vanish and have no idea why.")]
+        [SerializeField] private bool autoImportanceLod;
+
+        [Tooltip("Map units of span per point of importance. A marker with importance 1 " +
+                 "survives until the frame spans this much.")]
+        [SerializeField, Min(1f)] private float importancePerSpan = 400f;
+
         private RectTransform area;
         private Entry[] pool;
         private MapProjection projection;
@@ -135,6 +145,41 @@ namespace LiminalLabs.Atlas
         /// <summary>Moves the frame, in map units. Only meaningful on a map that is not
         /// following the viewer, which would re-centre it next tick.</summary>
         public void PanBy(Vector2 delta) => Projection.Pan += delta;
+
+        /// <summary>
+        /// Which markers this map draws. Unfiltered by default.
+        ///
+        /// A legend's checkboxes write here, and so does zoom LOD - see
+        /// <see cref="AutoImportanceLod"/>, which is the version most maps want.
+        /// </summary>
+        public AtlasFilter Filter
+        {
+            get => Projection.Filter;
+            set => Projection.Filter = value;
+        }
+
+        /// <summary>
+        /// Raises the importance floor as the map zooms out.
+        ///
+        /// Off by default, because a game that authored no importance would watch its
+        /// markers vanish as it zoomed out and have no idea why. On, it is the crowding
+        /// fix the design named: the floor scales with how much world is on screen, so a
+        /// continent shows its cities and a street shows its shops without anyone writing
+        /// a rule per marker.
+        /// </summary>
+        public bool AutoImportanceLod
+        {
+            get => autoImportanceLod;
+            set => autoImportanceLod = value;
+        }
+
+        /// <summary>Map units per importance point, when <see cref="AutoImportanceLod"/>
+        /// is on. A marker with importance 1 survives until the frame spans this much.</summary>
+        public float ImportancePerSpan
+        {
+            get => importancePerSpan;
+            set => importancePerSpan = Mathf.Max(1f, value);
+        }
 
         /// <summary>Back to the authored framing: no zoom, no pan.</summary>
         public void ResetFraming()
@@ -229,6 +274,16 @@ namespace LiminalLabs.Atlas
             Rect bounds = area.rect;
             AtlasMapFrame frame = Projection.LastFrame;
             int shown = 0;
+
+            // Set for the *next* solve, not this one - the list in hand was filtered with
+            // the previous frame's span. One frame of lag on a zoom threshold is invisible;
+            // re-solving to avoid it would not be.
+            if (autoImportanceLod)
+            {
+                AtlasFilter filter = Projection.Filter;
+                filter.MinimumImportance = Mathf.Max(0f, frame.Span / importancePerSpan - 1f);
+                Projection.Filter = filter;
+            }
 
             for (int i = 0; i < solves.Count && shown < pool.Length; i++)
             {

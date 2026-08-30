@@ -43,6 +43,24 @@ namespace LiminalLabs.Atlas
                  "until then assign an authored top-down image.")]
         [SerializeField] private Texture image;
 
+        [Header("Baking")]
+        [Tooltip("Longest side of the baked image, in pixels. The other side follows the " +
+                 "bounds' aspect, so the image covers the space exactly.")]
+        [SerializeField, Min(64)] private int bakeResolution = 1024;
+
+        [Tooltip("What the bake camera sees. Exclude the player, the HUD and anything " +
+                 "that moves - a baked map with a character standing in it is a map with a " +
+                 "character painted onto it forever.")]
+        [SerializeField] private LayerMask bakeLayers = ~0;
+
+        [Tooltip("Behind everything. Transparent by default so the map's own backing shows " +
+                 "through where the world does not cover.")]
+        [SerializeField] private Color bakeBackground = new Color(0f, 0f, 0f, 0f);
+
+        [Tooltip("How far above the bounds the bake camera sits. Only matters if something " +
+                 "sticks out of the bounds and you want it in the image.")]
+        [SerializeField, Min(0f)] private float bakeHeadroom = 10f;
+
         [Header("Floor")]
         [Tooltip("Where this floor sits vertically, for deciding which floor a position is on.")]
         [SerializeField] private float floorHeight;
@@ -66,6 +84,36 @@ namespace LiminalLabs.Atlas
         public Bounds WorldBounds =>
             new Bounds(centreOnTransform ? transform.position + boundsCentre : boundsCentre,
                        boundsSize);
+
+        /// <summary>Longest side of the baked image, in pixels.</summary>
+        public int BakeResolution => bakeResolution;
+
+        /// <summary>Layers the bake camera renders.</summary>
+        public LayerMask BakeLayers => bakeLayers;
+
+        /// <summary>Clear colour for the bake.</summary>
+        public Color BakeBackground => bakeBackground;
+
+        /// <summary>How far above the bounds the bake camera sits.</summary>
+        public float BakeHeadroom => bakeHeadroom;
+
+        /// <summary>
+        /// Assigns a baked image. Called by the baker, which lives in the editor assembly
+        /// and cannot reach a private serialized field from there without this.
+        /// </summary>
+        public void SetImage(Texture baked)
+        {
+            image = baked;
+            ApplyTo(registry);
+        }
+
+        /// <summary>The image this space draws under its markers.</summary>
+        public Texture Image => image;
+
+        private void ApplyTo(AtlasRegistryBehaviour target)
+        {
+            if (target != null) Apply(target.Registry);
+        }
 
         private void OnEnable()
         {

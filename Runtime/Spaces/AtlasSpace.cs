@@ -39,6 +39,39 @@ namespace LiminalLabs.Atlas
         public string Name = "Default";
 
         /// <summary>
+        /// What of this space has been seen. Null means no fog, which is what a game that
+        /// never asks for discovery gets.
+        ///
+        /// Lives on the space rather than in a separate system because it is indexed
+        /// against the same bounds as the baked image and the map framing - three things
+        /// over one extent, which is the whole argument for modelling a map as a plane.
+        /// </summary>
+        public AtlasReveal Reveal;
+
+        /// <summary>
+        /// Where a world position falls inside the bounds, 0..1 from the minimum corner.
+        ///
+        /// The index a reveal mask and a baked image share. Not the same as
+        /// <see cref="ToMap"/>, which is unbounded plane coordinates - conflating them is
+        /// how fog ends up offset from the terrain it is meant to hide.
+        /// </summary>
+        public Vector2 Normalise(Vector3 world)
+        {
+            Vector3 size = WorldBounds.size;
+            Vector3 min = WorldBounds.min;
+
+            return new Vector2(
+                Mathf.Approximately(size.x, 0f) ? 0.5f : (world.x - min.x) / size.x,
+                Mathf.Approximately(size.z, 0f) ? 0.5f : (world.z - min.z) / size.z);
+        }
+
+        /// <summary>Whether a world position has been seen. True when there is no mask,
+        /// so a game with no fog behaves as though everything is revealed rather than as
+        /// though nothing is.</summary>
+        public bool IsRevealed(Vector3 world) =>
+            Reveal == null || Reveal.IsRevealedAt(Normalise(world));
+
+        /// <summary>
         /// Top-down: world XZ becomes map XY.
         ///
         /// Written out rather than built with <c>Matrix4x4.TRS</c> because this is a

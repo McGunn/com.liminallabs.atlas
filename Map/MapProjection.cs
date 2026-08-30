@@ -102,10 +102,30 @@ namespace LiminalLabs.Atlas
         private float zoom = 1f;
         private bool warnedAboutEmptyBounds;
 
+        /// <summary>
+        /// Hide markers in parts of the space that have not been discovered.
+        ///
+        /// Off by default: a game with no reveal mask sees no difference either way, and a
+        /// game that has one usually wants its compass to keep pointing at a quest marker
+        /// it was told about even where it has not walked. Undiscovered-means-hidden is a
+        /// map decision, so it lives on the map.
+        /// </summary>
+        public bool HideUndiscovered { get; set; }
+
         /// <summary>The frame the last <see cref="Solve"/> produced. A presenter needs it
         /// to draw the background image and the compass rose the same way up as the
         /// markers, and recomputing it there is how the two come to disagree.</summary>
         public AtlasMapFrame LastFrame { get; private set; }
+
+        /// <summary>
+        /// Which markers this view draws. Unfiltered by default.
+        ///
+        /// Applied here rather than in the presenter because the registry has
+        /// already truncated to MaxMarkers by the time a presenter sees anything:
+        /// filtering afterwards would show whatever passed a priority cut against
+        /// every other kind, rather than the nearest markers of the kind asked for.
+        /// </summary>
+        public AtlasFilter Filter { get; set; }
 
         public void Solve(in AtlasViewer viewer, AtlasSpaceRegistry spaces,
                           IReadOnlyList<IAtlasTrackable> targets, List<AtlasSolve> into)
@@ -122,6 +142,13 @@ namespace LiminalLabs.Atlas
 
                 bool sameSpace = target.Space == viewer.Space;
                 if (!sameSpace) continue;
+
+                // Filtered here, before anything is solved for it - see Filter. On a map
+                // this is also the zoom LOD: a view raises MinimumImportance as it zooms
+                // out, so a region shows its cities and a street shows its shops.
+                if (!Filter.IsUnfiltered && !Filter.Allows(target.Marker)) continue;
+
+                if (HideUndiscovered && space != null && !space.IsRevealed(target.Position)) continue;
 
                 Vector3 world = target.Position;
                 Vector2 onPlane = space != null ? space.ToMap(world) : Flatten(world);

@@ -1,0 +1,25 @@
+{
+    "name": "LiminalLabs.Atlas.Save",
+    "rootNamespace": "LiminalLabs.Atlas",
+    "references": [
+        "LiminalLabs.Atlas",
+        "LiminalLabs.Save"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LIMINAL_SAVE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.liminallabs.save",
+            "expression": "0.1.0",
+            "define": "LIMINAL_SAVE"
+        }
+    ],
+    "noEngineReferences": false
+}

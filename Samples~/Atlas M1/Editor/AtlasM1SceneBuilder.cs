@@ -190,6 +190,35 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
         private static Sprite Shared(string name) =>
             AssetDatabase.LoadAssetAtPath<Sprite>(SharedSprites + name + ".png");
 
+        /// <summary>
+        /// The layer a baked space image is drawn on, under everything else.
+        ///
+        /// Stretched to the whole map rect, because the presenter expresses the visible
+        /// window as a uv rect over the space's bounds - the image has to fill the rect for
+        /// that arithmetic to land where the markers do. It draws nothing until the space
+        /// has an image, which is a bake away.
+        /// </summary>
+        private static RawImage AddBackground(RectTransform parent)
+        {
+            var go = new GameObject("Map Image", typeof(RectTransform), typeof(RawImage));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var image = go.GetComponent<RawImage>();
+            image.raycastTarget = false;
+            image.enabled = false;    // the presenter switches it on when a space has one
+
+            // First, so markers and the viewer arrow draw over it.
+            go.transform.SetAsFirstSibling();
+
+            return image;
+        }
+
         private static Canvas BuildCanvas()
         {
             var canvasObject = new GameObject("Atlas Canvas",
@@ -282,6 +311,8 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             // nothing and the map would float with no edge to read it against.
             mapObject.GetComponent<Mask>().showMaskGraphic = true;
 
+            RawImage minimapBackground = AddBackground(rect);
+
             var viewerArrow = new GameObject("Viewer", typeof(RectTransform), typeof(Image));
             viewerArrow.transform.SetParent(rect, false);
             var arrowRect = (RectTransform)viewerArrow.transform;
@@ -304,6 +335,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             serialized.FindProperty("centre").enumValueIndex = (int)AtlasMapCentre.Viewer;
             serialized.FindProperty("rotation").enumValueIndex = (int)AtlasMapRotation.ViewerUp;
             serialized.FindProperty("viewerArrow").objectReferenceValue = arrowRect;
+            serialized.FindProperty("background").objectReferenceValue = minimapBackground;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             // The arrow is drawn last so markers cannot cover the thing telling you where
@@ -335,6 +367,8 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             backing.color = new Color(0.04f, 0.05f, 0.07f, 0.94f);
             backing.raycastTarget = false;
 
+            RawImage worldBackground = AddBackground(rect);
+
             var worldMap = mapObject.AddComponent<MinimapPresenter>();
             var serialized = new SerializedObject(worldMap);
             serialized.FindProperty("icons").objectReferenceValue = icons;
@@ -344,6 +378,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             serialized.FindProperty("rotation").enumValueIndex = (int)AtlasMapRotation.NorthUp;
             serialized.FindProperty("markerSize").vector2Value = new Vector2(30f, 30f);
             serialized.FindProperty("pinOutsideMarkers").boolValue = false;
+            serialized.FindProperty("background").objectReferenceValue = worldBackground;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             return mapObject;
