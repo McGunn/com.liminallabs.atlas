@@ -178,9 +178,19 @@ namespace LiminalLabs.Atlas
                 float t = solve.Bearing / half;
                 entry.Rect.anchoredPosition = new Vector2(t * width * 0.5f, markerY);
 
-                Sprite sprite = IconProvider != null ? IconProvider.Resolve(solve.Marker.IconId) : null;
-                entry.Image.sprite = sprite;
-                entry.Image.enabled = sprite != null;
+                // Drawn whether or not a sprite resolved. An Image with no sprite renders
+                // a plain quad, which tinted is a readable blank marker - and a blank
+                // marker is what IAtlasIconProvider promises a missing icon costs.
+                //
+                // Disabling the Image instead made an unconfigured presenter draw nothing
+                // at all, which is indistinguishable from a registry that is not ticking,
+                // a marker that never registered, or a camera facing the wrong way. The
+                // system's whole promise is that a registered marker in view is visible;
+                // an unassigned icon list is a styling gap, not grounds to break it.
+                entry.Image.sprite = IconProvider != null
+                    ? IconProvider.Resolve(solve.Marker.IconId)
+                    : null;
+                entry.Image.enabled = true;
 
                 Color tint = solve.Marker.Tint;
                 tint.a *= solve.Fade;

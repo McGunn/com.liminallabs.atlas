@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Markers drew nothing without an icon set.** Both presenters disabled the `Image`
+  when a sprite failed to resolve, so an unconfigured compass bar and indicator layer
+  rendered an empty frame while `VisibleCount` cheerfully reported markers visible.
+  `IAtlasIconProvider` documents that a missing icon costs a blank marker rather than a
+  broken frame; the code did the opposite. Markers now always draw, tinted, with the
+  sprite when there is one. Two tests cover it — the previous nine all passed while both
+  views rendered nothing, because they asserted on `activeSelf` rather than on what uGUI
+  would draw.
+
+### Added
+
+- The M0 sample wires real icons from `com.liminallabs.shareddemoassets` (optional):
+  one `AtlasSpriteIcons` asset shared by both views, so an objective cannot be a flag on
+  the compass and a star on screen. Off-screen indicators get an arrow sprite, and the
+  orbiting marker gets a label, tint and icon instead of defaults.
+- Demo input reads through `AtlasM0Input`, which works on either input backend.
+
 ## [0.1.0] — M0, the falsifiable core
 
 One tracked object, registered once, on the compass bar and as an on-screen indicator

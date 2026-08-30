@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -58,11 +59,21 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             GameObject orbiting = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             orbiting.name = "Orbiting Marker";
             orbiting.transform.position = new Vector3(0f, 1f, 18f);
-            orbiting.AddComponent<AtlasMarkerBehaviour>();
+            var orbitingMarker = orbiting.AddComponent<AtlasMarkerBehaviour>();
+
+            var marker = new SerializedObject(orbitingMarker);
+            marker.FindProperty("kind").enumValueIndex = (int)AtlasMarkerKind.Point;
+            marker.FindProperty("label").stringValue = "Orbiting Signal";
+            marker.FindProperty("iconId").intValue = AtlasM0Icons.Signal;
+            marker.FindProperty("tint").colorValue = new Color(1f, 0.35f, 0.5f);
+            marker.FindProperty("priority").floatValue = 0.75f;
+            marker.ApplyModifiedPropertiesWithoutUndo();
+
+            AtlasSpriteIcons icons = BuildIcons(folder);
 
             Canvas canvas = BuildCanvas();
-            AddIndicatorLayer(canvas);
-            AddCompassBar(canvas);
+            AddIndicatorLayer(canvas, icons);
+            AddCompassBar(canvas, icons);
 
             var demo = registryObject.AddComponent<AtlasM0Demo>();
             var serialized = new SerializedObject(demo);
@@ -115,6 +126,73 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             return null;
         }
 
+        private const string SharedSprites =
+            "Packages/com.liminallabs.shareddemoassets/Creative Commons 0 Sprites/GenericUI/";
+
+        /// <summary>
+        /// Builds the icon set the two presenters share.
+        ///
+        /// One asset, both views: the compass and the on-screen indicators resolve the
+        /// same id through the same provider, so an objective cannot end up a flag on one
+        /// and a star on the other. That is the same argument as the shared solve, applied
+        /// to art.
+        ///
+        /// Returns null when the shared demo assets package is absent. That is not a
+        /// failure - the presenters draw tinted blanks without it, exactly as
+        /// IAtlasIconProvider promises a missing icon costs, and the milestone is about
+        /// where markers are rather than what they look like.
+        /// </summary>
+        private static AtlasSpriteIcons BuildIcons(string folder)
+        {
+            var sprites = new List<Sprite>();
+            var missing = new List<string>();
+
+            foreach (string name in AtlasM0Icons.SpriteNames)
+            {
+                Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(SharedSprites + name + ".png");
+                if (sprite == null) missing.Add(name);
+                sprites.Add(sprite);
+            }
+
+            if (missing.Count == AtlasM0Icons.SpriteNames.Length)
+            {
+                Debug.LogWarning(
+                    "[Atlas M0] com.liminallabs.shareddemoassets is not installed, so the " +
+                    "demo has no icons. Markers draw as tinted blanks; everything else in " +
+                    "the milestone works.");
+                return null;
+            }
+
+            if (missing.Count > 0)
+            {
+                Debug.LogWarning("[Atlas M0] Missing sprites: " + string.Join(", ", missing));
+            }
+
+            string path = folder + "/AtlasIcons.asset";
+            var icons = AssetDatabase.LoadAssetAtPath<AtlasSpriteIcons>(path);
+            if (icons == null)
+            {
+                icons = ScriptableObject.CreateInstance<AtlasSpriteIcons>();
+                AssetDatabase.CreateAsset(icons, path);
+            }
+
+            // Written through SerializedObject rather than a public setter: the list is
+            // private because its order is a contract with AtlasM0Icons, and widening the
+            // API of a shipped type to make a sample easier to build is the wrong trade.
+            var serialized = new SerializedObject(icons);
+            SerializedProperty list = serialized.FindProperty("icons");
+            list.arraySize = sprites.Count;
+            for (int i = 0; i < sprites.Count; i++)
+                list.GetArrayElementAtIndex(i).objectReferenceValue = sprites[i];
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            EditorUtility.SetDirty(icons);
+            return icons;
+        }
+
+        private static Sprite Arrow() => AssetDatabase.LoadAssetAtPath<Sprite>(
+            SharedSprites + AtlasM0Icons.ArrowSpriteName + ".png");
+
         private static Canvas BuildCanvas()
         {
             var canvasObject = new GameObject("Atlas Canvas",
@@ -139,7 +217,7 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
         /// draws behind it — an indicator sliding under the compass strip reads better
         /// than one drawn over the top of it.
         /// </summary>
-        private static void AddIndicatorLayer(Canvas canvas)
+        private static void AddIndicatorLayer(Canvas canvas, AtlasSpriteIcons icons)
         {
             var layer = new GameObject("Screen Indicators", typeof(RectTransform));
             layer.transform.SetParent(canvas.transform, false);
@@ -150,7 +228,12 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
 
-            layer.AddComponent<ScreenPresenter>();
+            var screen = layer.AddComponent<ScreenPresenter>();
+
+            var serialized = new SerializedObject(screen);
+            serialized.FindProperty("icons").objectReferenceValue = icons;
+            serialized.FindProperty("arrowSprite").objectReferenceValue = Arrow();
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>
@@ -158,7 +241,7 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
         /// presenter reads the rect rather than assuming a size — resize it and the
         /// mapping follows.
         /// </summary>
-        private static void AddCompassBar(Canvas canvas)
+        private static void AddCompassBar(Canvas canvas, AtlasSpriteIcons icons)
         {
             var barObject = new GameObject("Compass Bar", typeof(RectTransform), typeof(Image));
             barObject.transform.SetParent(canvas.transform, false);
@@ -174,7 +257,11 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             backing.color = new Color(0f, 0f, 0f, 0.35f);
             backing.raycastTarget = false;
 
-            barObject.AddComponent<BarPresenter>();
+            var bar = barObject.AddComponent<BarPresenter>();
+
+            var serialized = new SerializedObject(bar);
+            serialized.FindProperty("icons").objectReferenceValue = icons;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
     }
 }

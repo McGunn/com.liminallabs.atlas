@@ -171,6 +171,10 @@ obvious those are one answer rendered twice, not two implementations that agree 
 For a single-view scene, delete `Compass Bar` or `Screen Indicators`. The presenters
 register themselves, so removing one changes nothing else.
 
+Icons come from `com.liminallabs.shareddemoassets`, which is optional. Without it the
+markers draw as tinted blanks and everything else in the milestone still works — a
+missing icon costs a blank marker, never a blank frame.
+
 ---
 
 ## Not built
@@ -184,5 +188,5 @@ No Addressables, in any milestone.
 
 ## Open questions
 
-`docs/atlas-open-questions.md` — twelve, none blocking. **Q5 is the one to read**: the
+`docs/atlas-open-questions.md` — thirteen, none blocking. **Q5 is the one to read**: the
 space id representation is the decision that becomes saved data.

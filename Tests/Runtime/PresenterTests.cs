@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace LiminalLabs.Atlas.Tests
 {
@@ -94,6 +95,87 @@ namespace LiminalLabs.Atlas.Tests
 
             go.SetActive(true);
             return component;
+        }
+
+        /// <summary>
+        /// Images that would actually reach the renderer: on an active object, enabled,
+        /// and not fully transparent.
+        ///
+        /// Read through the hierarchy rather than through a presenter API, because what
+        /// matters is what uGUI draws, not what the presenter reports about itself. That
+        /// distinction is the whole point of the two tests below.
+        /// </summary>
+        private static int DrawnImages(Component presenter)
+        {
+            int drawn = 0;
+            foreach (Image image in presenter.GetComponentsInChildren<Image>(false))
+                if (image.enabled && image.color.a > 0f) drawn++;
+            return drawn;
+        }
+
+        // ---- the blank-marker contract --------------------------------------
+
+        /// <summary>
+        /// A marker with no icon still draws.
+        ///
+        /// This is the regression that hid behind <c>VisibleCount</c>. The pooled object
+        /// was active, so the count reported one visible marker, while the Image on it was
+        /// disabled and the frame was empty. Every presenter test passed and both views
+        /// rendered nothing - which is indistinguishable from a registry that is not
+        /// ticking, a marker that never registered, or a camera facing the wrong way.
+        ///
+        /// <see cref="IAtlasIconProvider"/> promises a missing icon costs a blank marker
+        /// rather than a broken frame, and a scene with no icon list assigned is how most
+        /// people first see this package.
+        /// </summary>
+        [Test]
+        public void AMarkerWithNoIconStillDraws()
+        {
+            BarPresenter bar = Spawn<BarPresenter>();
+            ScreenPresenter screen = Spawn<ScreenPresenter>(1920f, 1080f);
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+            registry.AddProjection(new ScreenProjection(), screen);
+
+            registry.Register(new Fake { At = new Vector3(0f, 0f, 20f) });
+            registry.Tick(Viewer());
+
+            Assert.AreEqual(1, DrawnImages(bar),
+                "the compass marker has to be rendered, not merely active");
+            Assert.AreEqual(1, DrawnImages(screen),
+                "and so does the on-screen indicator");
+        }
+
+        /// <summary>
+        /// The marker's tint reaches the thing that draws it.
+        ///
+        /// Without an icon the tint is the only way one marker is told from another, so a
+        /// blank marker that ignored it would be a blank marker in name only.
+        /// </summary>
+        [Test]
+        public void TheMarkerTintReachesTheImage()
+        {
+            BarPresenter bar = Spawn<BarPresenter>();
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+
+            var fake = new Fake { At = new Vector3(0f, 0f, 20f) };
+            fake.Mark.Tint = Color.magenta;
+            registry.Register(fake);
+            registry.Tick(Viewer());
+
+            foreach (Image image in bar.GetComponentsInChildren<Image>(false))
+            {
+                if (!image.enabled) continue;
+                Assert.AreEqual(Color.magenta.r, image.color.r, 0.001f);
+                Assert.AreEqual(Color.magenta.g, image.color.g, 0.001f);
+                Assert.AreEqual(Color.magenta.b, image.color.b, 0.001f);
+                return;
+            }
+
+            Assert.Fail("no drawn image to check the tint on");
         }
 
         // ---- 20: the milestone ----------------------------------------------

@@ -88,6 +88,7 @@ namespace LiminalLabs.Atlas.SampleM0
             {
                 Kind = AtlasMarkerKind.Objective,
                 Label = "North Tower",
+                IconId = AtlasM0Icons.Objective,
                 Tint = Color.cyan,
                 Priority = 1f,
             }));
@@ -100,6 +101,7 @@ namespace LiminalLabs.Atlas.SampleM0
             {
                 Kind = AtlasMarkerKind.Waypoint,
                 Label = "Drifting Signal",
+                IconId = AtlasM0Icons.Waypoint,
                 Tint = new Color(1f, 0.8f, 0.3f),
                 Priority = 0.5f,
             }, AtlasSpaceId.Default);
