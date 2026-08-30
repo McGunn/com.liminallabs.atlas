@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using LiminalLabs.Core;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,6 +39,37 @@ namespace LiminalLabs.Atlas
         [Tooltip("How far from the icon the arrow sits, in the direction of the target.")]
         [SerializeField] private float arrowOffset = 34f;
 
+        [Tooltip("Degrees to add so your art points the right way. 0 if the arrow art " +
+                 "points right, 90 if it points up.")]
+        [SerializeField, Range(-180f, 180f)] private float arrowRotationOffset;
+
+        [Header("Distance")]
+        [Tooltip("Alpha against Fade, which is already 1 near and 0 at the cull distance.")]
+        [SerializeField] private AnimationCurve fadeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        [Tooltip("Scale at the far edge of visibility.")]
+        [SerializeField, Range(0.1f, 2f)] private float minScale = 0.7f;
+
+        [Tooltip("Scale up close.")]
+        [SerializeField, Range(0.1f, 2f)] private float maxScale = 1.1f;
+
+        [Header("Labels")]
+        [SerializeField] private bool showDistanceLabels;
+
+        [Tooltip("{0} is the distance in metres, already rounded.")]
+        [SerializeField] private string distanceFormat = "{0}m";
+
+        [SerializeField] private float labelSize = 14f;
+        [SerializeField] private float labelOffsetY = -30f;
+
+        [Header("Culling")]
+        [Tooltip("Hide indicators whose target is behind the viewer. The compass still " +
+                 "shows them; this is for HUDs that want the screen kept clear.")]
+        [SerializeField] private bool hideWhenBehind;
+
+        [Tooltip("Hide indicators whose target is off screen, arrows included.")]
+        [SerializeField] private bool hideWhenOffScreen;
+
         [Header("Pool")]
         [Tooltip("Must be at least the registry's MaxMarkers. Allocated once, at Awake.")]
         [SerializeField, Min(1)] private int poolSize = 32;
@@ -47,6 +79,8 @@ namespace LiminalLabs.Atlas
 
         private RectTransform area;
         private Entry[] pool;
+        private TMP_FontAsset font;
+        private bool fontResolved;
 
         public IAtlasIconProvider IconProvider { get; set; }
 
@@ -159,11 +193,64 @@ namespace LiminalLabs.Atlas
                 arrowImage.sprite = arrowSprite;
 
                 root.SetActive(false);
-                pool[i] = new Entry(rect, image, arrowRect, arrowImage);
+                TextMeshProUGUI label = showDistanceLabels ? BuildLabel(rect) : null;
+
+                pool[i] = new Entry(rect, image, arrowRect, arrowImage, label);
             }
         }
 
-        public void Present(IReadOnlyList<AtlasSolve> solves)
+        /// <summary>
+        /// A font for the labels without anyone having to assign one.
+        ///
+        /// TMP draws nothing at all when it has no default font asset, which is a fresh
+        /// project's normal state and reads as broken labels rather than as a setting
+        /// nobody filled in. Core already vendors typefaces for this kind of reason.
+        /// </summary>
+        private TMP_FontAsset Font()
+        {
+            if (fontResolved) return font;
+            fontResolved = true;
+
+            font = TMP_Settings.defaultFontAsset;
+            if (font != null) return font;
+
+            Font fallback = LiminalFonts.Get(LiminalFontRole.Sans);
+            if (fallback != null) font = TMP_FontAsset.CreateFontAsset(fallback);
+
+            if (font == null)
+            {
+                Debug.LogWarning(
+                    $"[Atlas] '{name}' has no TMP font asset and core's fallback could not " +
+                    "be loaded, so indicator labels will not draw. Assign a default font " +
+                    "under Project Settings > TextMeshPro.", this);
+            }
+
+            return font;
+        }
+
+        private TextMeshProUGUI BuildLabel(RectTransform parent)
+        {
+            var go = new GameObject("Distance", typeof(RectTransform), typeof(TextMeshProUGUI));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(90f, 20f);
+            rect.anchoredPosition = new Vector2(0f, labelOffsetY);
+
+            var text = go.GetComponent<TextMeshProUGUI>();
+            text.font = Font();
+            text.fontSize = labelSize;
+            text.alignment = TextAlignmentOptions.Center;
+            text.raycastTarget = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+
+            return text;
+        }
+
+        public void Present(in AtlasViewer viewer, IReadOnlyList<AtlasSolve> solves)
         {
             if (pool == null) return;
 
@@ -175,11 +262,22 @@ namespace LiminalLabs.Atlas
                 AtlasSolve solve = solves[i];
                 if (solve.Fade <= 0f) continue;
 
+                bool clamped = !solve.OnScreen;
+
+                // Both off by default. An indicator pinned to the edge for something
+                // behind you is the feature, not a nuisance - but a HUD that already says
+                // so on a compass may want the screen kept clear, and that is a decision
+                // for whoever is designing the HUD rather than for this component.
+                if (hideWhenOffScreen && clamped) continue;
+                if (hideWhenBehind && solve.Behind) continue;
+
                 Entry entry = pool[shown++];
+
+                float fade = Mathf.Clamp01(fadeCurve.Evaluate(Mathf.Clamp01(solve.Fade)));
+                entry.Rect.localScale = Vector3.one * AtlasMath.DistanceScale(fade, minScale, maxScale);
 
                 Vector2 viewport;
                 float angle = 0f;
-                bool clamped = !solve.OnScreen;
 
                 if (clamped)
                 {
@@ -223,8 +321,14 @@ namespace LiminalLabs.Atlas
                 entry.Image.sprite = sprite;
                 entry.Image.enabled = true;
 
-                tint.a *= solve.Fade;
+                tint.a *= fade;
                 entry.Image.color = tint;
+
+                if (entry.Label != null)
+                {
+                    entry.Label.text = string.Format(distanceFormat, Mathf.RoundToInt(solve.Distance));
+                    entry.Label.color = tint;
+                }
 
                 // The arrow only means anything when the icon is not where the thing is.
                 bool showArrow = clamped && arrowSprite != null;
@@ -232,7 +336,12 @@ namespace LiminalLabs.Atlas
 
                 if (showArrow)
                 {
-                    entry.ArrowRect.localRotation = Quaternion.Euler(0f, 0f, angle);
+                    // The offset is what lets any arrow art work. Without it the component
+                    // silently requires art that points right, and art that points up -
+                    // which is the more common way to draw an arrow - is wrong by 90
+                    // degrees in a way that looks like a maths bug rather than a setting.
+                    entry.ArrowRect.localRotation =
+                        Quaternion.Euler(0f, 0f, angle + arrowRotationOffset);
                     entry.ArrowRect.anchoredPosition = new Vector2(
                         Mathf.Cos(angle * Mathf.Deg2Rad) * arrowOffset,
                         Mathf.Sin(angle * Mathf.Deg2Rad) * arrowOffset);
@@ -276,8 +385,12 @@ namespace LiminalLabs.Atlas
             public readonly GameObject Object;
             public readonly GameObject ArrowObject;
 
-            public Entry(RectTransform rect, Image image, RectTransform arrowRect, Image arrowImage)
+            public readonly TextMeshProUGUI Label;
+
+            public Entry(RectTransform rect, Image image, RectTransform arrowRect,
+                         Image arrowImage, TextMeshProUGUI label)
             {
+                Label = label;
                 Rect = rect;
                 Image = image;
                 ArrowRect = arrowRect;

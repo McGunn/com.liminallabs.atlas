@@ -35,6 +35,21 @@ namespace LiminalLabs.Atlas
         /// </summary>
         public int IconId;
 
+        /// <summary>
+        /// A sprite for this one marker, bypassing <see cref="IconId"/> and the provider.
+        ///
+        /// The id and its provider are the right shape for a game with a fixed icon set,
+        /// and the wrong one for the handful of markers that are genuinely one-off - a
+        /// contract's portrait, a photographed landmark, an icon a player chose. Those
+        /// would otherwise each need an id, permanently, in an array whose order is a
+        /// contract with save data.
+        ///
+        /// A plain Sprite rather than an asset reference: whoever sets this already holds
+        /// the sprite, and making the package learn about Addressables to receive
+        /// something the caller has in hand would be the tail wagging the dog.
+        /// </summary>
+        public Sprite IconOverride;
+
         public Color Tint;
 
         /// <summary>A marker with sensible values, since <c>default</c> would be a
@@ -47,6 +62,7 @@ namespace LiminalLabs.Atlas
             Label = label,
             MaxDistance = 0f,
             IconId = iconId,
+            IconOverride = null,
             Tint = Color.white,
         };
     }

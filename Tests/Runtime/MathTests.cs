@@ -218,5 +218,100 @@ namespace LiminalLabs.Atlas.Tests
             float halfway = AtlasMath.Fade(90f, 100f);
             Assert.That(halfway, Is.InRange(0.4f, 0.6f), "linear across the last fifth");
         }
+
+        // ---- cardinal directions, for the compass letters -------------------
+
+        /// <summary>
+        /// A direction has no position, so it cannot be solved as a marker - and faking
+        /// one by picking a point far to the north is wrong near the world origin and
+        /// needless everywhere else.
+        /// </summary>
+        [Test]
+        public void NorthIsDeadAheadWhenFacingNorth()
+        {
+            AtlasViewer viewer = Viewer(yaw: 0f);
+            Assert.AreEqual(0f, AtlasMath.BearingOfDirection(viewer, Vector3.forward), 0.01f);
+        }
+
+        [Test]
+        public void CardinalDirectionsSitWhereTheyShouldWhenFacingNorth()
+        {
+            AtlasViewer viewer = Viewer(yaw: 0f);
+
+            Assert.AreEqual(0f, AtlasMath.BearingOfDirection(viewer, Vector3.forward), 0.01f, "N");
+            Assert.AreEqual(90f, AtlasMath.BearingOfDirection(viewer, Vector3.right), 0.01f, "E is right");
+            Assert.AreEqual(-90f, AtlasMath.BearingOfDirection(viewer, Vector3.left), 0.01f, "W is left");
+            Assert.AreEqual(180f, Mathf.Abs(AtlasMath.BearingOfDirection(viewer, Vector3.back)), 0.01f, "S is behind");
+        }
+
+        /// <summary>
+        /// Turning right moves the letters left, by the amount turned. The sign is the
+        /// whole thing a compass gets wrong, and it is wrong in a way that looks fine
+        /// standing still.
+        /// </summary>
+        [Test]
+        public void TurningRightSlidesTheLettersLeft()
+        {
+            AtlasViewer viewer = Viewer(yaw: 30f);
+            Assert.AreEqual(-30f, AtlasMath.BearingOfDirection(viewer, Vector3.forward), 0.01f);
+        }
+
+        /// <summary>
+        /// Looking straight up flattens Forward to nothing. A hand-rolled compass spins
+        /// wildly here; the letters have to stay put, since the direction you are facing
+        /// on the ground has not changed.
+        /// </summary>
+        [Test]
+        public void LookingStraightUpDoesNotSpinTheLetters()
+        {
+            AtlasViewer viewer = Viewer(yaw: 45f, pitch: 89.999f);
+            float bearing = AtlasMath.BearingOfDirection(viewer, Vector3.forward);
+            Assert.AreEqual(-45f, bearing, 1f);
+        }
+
+        // ---- idle activity ---------------------------------------------------
+
+        [Test]
+        public void AStillViewerIsNotBusy()
+        {
+            AtlasViewer viewer = Viewer();
+            Assert.AreEqual(0f, AtlasMath.Activity(viewer, viewer, 0.016f), 0.0001f);
+        }
+
+        /// <summary>Turning counts as much as walking: a player sweeping the camera is
+        /// looking for something, which is when a compass earns its space.</summary>
+        [Test]
+        public void TurningCountsAsActivity()
+        {
+            AtlasViewer before = Viewer(yaw: 0f);
+            AtlasViewer after = Viewer(yaw: 20f);
+            Assert.AreEqual(1f, AtlasMath.Activity(before, after, 0.016f), 0.0001f);
+        }
+
+        [Test]
+        public void WalkingCountsAsActivity()
+        {
+            AtlasViewer before = Viewer(Vector3.zero);
+            AtlasViewer after = Viewer(new Vector3(0f, 0f, 0.1f));
+            Assert.Greater(AtlasMath.Activity(before, after, 0.016f), 0.9f);
+        }
+
+        /// <summary>A zero delta time is a paused frame, not an infinitely fast one.</summary>
+        [Test]
+        public void AZeroFrameIsNotInfiniteActivity()
+        {
+            AtlasViewer before = Viewer(Vector3.zero);
+            AtlasViewer after = Viewer(new Vector3(0f, 0f, 100f));
+            Assert.AreEqual(0f, AtlasMath.Activity(before, after, 0f), 0.0001f);
+        }
+
+        [Test]
+        public void DistanceScaleInterpolatesBetweenTheAuthoredSizes()
+        {
+            Assert.AreEqual(0.8f, AtlasMath.DistanceScale(0f, 0.8f, 1.2f), 0.0001f);
+            Assert.AreEqual(1.2f, AtlasMath.DistanceScale(1f, 0.8f, 1.2f), 0.0001f);
+            Assert.AreEqual(1.0f, AtlasMath.DistanceScale(0.5f, 0.8f, 1.2f), 0.0001f);
+        }
+
     }
 }

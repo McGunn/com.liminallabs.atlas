@@ -1,6 +1,49 @@
 # Changelog
 
-## Unreleased
+## [0.2.0] — the compass grows up
+
+### Added — the compass, from a year of shipped iteration
+
+Harvested from a working compass and indicator pair, reimplemented against this
+package's architecture rather than ported. The features are the author's; the plumbing
+is not, because the original had the presenter computing its own bearings, which is the
+thing that lets two views quietly disagree about what is behind you.
+
+- **Markers slide off the ends and are clipped, instead of vanishing.** They kept their
+  slot until fully past the edge. The old behaviour hid a marker the instant it crossed
+  half the bar's field of view — while it was still entirely on screen — which pops, and
+  a marker that disappears a pixel before the edge reads as a bug. The README argued
+  hiding was right because a *clamped* marker lies about where its target is; that was
+  right about clamping and wrong about the remedy.
+- **Cardinal letters** — N, E, S, W, optionally with the diagonals — sliding through the
+  markers on the same mapping, asserted by a test rather than by eye. They need
+  `AtlasMath.BearingOfDirection`, because a direction has no position and faking one by
+  picking a point far to the north is wrong near the world origin.
+- **Distance labels** on both views, and a designer-editable `fadeCurve` and a near/far
+  `scale` range, so depth reads without anything becoming illegible.
+- **Idle fade**: the bar dims while the viewer is still and returns when it moves.
+  Driven by `AtlasMath.Activity`, which is arithmetic over two frozen viewers — so a
+  compass on a cutscene camera, a drone or a replay fades on the same rule as one on a
+  player, and it is testable with no scene.
+- **`arrowRotationOffset`** on the screen presenter, so any arrow art works. Without it
+  the component silently requires art that points right, and art that points up is wrong
+  by ninety degrees in a way that looks like a maths bug.
+- **`AtlasMarker.IconOverride`** — a sprite for one marker, bypassing the id and its
+  provider. The array's order is a contract with save data, and a one-off icon should not
+  need a permanent slot in it.
+- **`Discovery`, `FastTravel` and `Event` marker kinds.**
+- `hideWhenBehind` and `hideWhenOffScreen` on the screen presenter, both off.
+
+### Changed
+
+- **`IAtlasPresenter.Present` now takes the frame's viewer.** Cardinal letters are
+  directions with no position, so no solve can carry them. The viewer is the same frozen
+  struct the solve used; presenters may run the pure functions in `AtlasMath` over it and
+  may still do nothing else.
+- Labels fall back to a TMP font asset built from core's vendored Inter when the project
+  has no default. TMP draws nothing at all without one, which reads as broken labels
+  rather than as a setting nobody filled in.
+
 
 ### Fixed
 

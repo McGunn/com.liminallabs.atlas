@@ -318,7 +318,7 @@ namespace LiminalLabs.Atlas.Tests
             registry.Tick(Viewer());
 
             Assert.AreEqual(0, bar.VisibleCount,
-                "outside a 180 degree bar, so hidden rather than piled at an end");
+                "far outside a 180 degree bar, so released rather than piled at an end");
 
             Assert.AreEqual(1, screen.VisibleCount);
             Assert.Less(screen.VisiblePosition(0).x, 0f,
@@ -328,7 +328,7 @@ namespace LiminalLabs.Atlas.Tests
         // ---- 21, 22: the compass ---------------------------------------------
 
         [Test]
-        public void TheBarHidesRatherThanClampsOutsideItsFieldOfView()
+        public void TheBarReleasesMarkersOnlyOnceTheyAreFullyPastTheEnd()
         {
             BarPresenter bar = Spawn<BarPresenter>();
             bar.BarFieldOfView = 90f;
@@ -341,7 +341,8 @@ namespace LiminalLabs.Atlas.Tests
             registry.Tick(Viewer());
 
             Assert.AreEqual(1, bar.VisibleCount,
-                "a clamped marker piles up at the end of the bar and reads as a target that is there");
+                "90 degrees on a 90 degree bar is a full bar-width past the end, so the " +
+                "second marker is gone rather than piled up at the edge pretending to be there");
         }
 
         [Test]
@@ -460,5 +461,134 @@ namespace LiminalLabs.Atlas.Tests
             Assert.AreEqual(0, registry.Registry.ProjectionCount,
                 "and disabling it takes the projection back out");
         }
+
+        // ---- slide-off, cardinal letters, overrides -------------------------
+
+        /// <summary>
+        /// A marker just past the bar's field of view is still drawn, and slides.
+        ///
+        /// The previous behaviour hid it the instant it crossed half the FOV, which pops
+        /// - a marker vanishing a pixel before the edge reads as a bug rather than as a
+        /// boundary. It keeps its slot until it is fully past the edge and is clipped by
+        /// the mask on the way out.
+        /// </summary>
+        [Test]
+        public void AMarkerJustPastTheEdgeStillDrawsAndSlides()
+        {
+            BarPresenter bar = Spawn<BarPresenter>(800f, 200f);
+            bar.BarFieldOfView = 90f;   // half is 45 degrees across 800 units
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+
+            // 46 degrees right. Past the 45-degree half FOV, so the old code hid it while
+            // it was still entirely on screen. It slides out over its own width instead:
+            // 45 degrees puts its centre on the bar's edge, and it is fully clipped half a
+            // marker later.
+            var fake = new Fake { At = new Vector3(Mathf.Sin(46f * Mathf.Deg2Rad), 0f,
+                                                   Mathf.Cos(46f * Mathf.Deg2Rad)) * 20f };
+            registry.Register(fake);
+            registry.Tick(Viewer());
+
+            Assert.AreEqual(1, bar.VisibleCount, "still drawn past the field of view");
+            Assert.Greater(bar.VisiblePosition(0).x, 400f,
+                "and sitting over the bar's edge, where the mask clips it");
+        }
+
+        /// <summary>Fully past the edge, the slot is released - otherwise a pool of 32
+        /// would be spent on markers behind you.</summary>
+        [Test]
+        public void AMarkerFullyPastTheEdgeReleasesItsSlot()
+        {
+            BarPresenter bar = Spawn<BarPresenter>(800f, 200f);
+            bar.BarFieldOfView = 90f;
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+
+            registry.Register(new Fake { At = new Vector3(-20f, 0f, -1f) });   // ~behind left
+            registry.Tick(Viewer());
+
+            Assert.AreEqual(0, bar.VisibleCount);
+        }
+
+        /// <summary>
+        /// Facing north, the N sits dead centre.
+        ///
+        /// The letters are the half of a compass that has no marker behind it, so nothing
+        /// else in the suite would catch them being mirrored - and mirrored is exactly how
+        /// a compass gets built wrong, because it looks plausible until you turn around.
+        /// </summary>
+        [Test]
+        public void TheNorthLetterSitsAtTheCentreWhenFacingNorth()
+        {
+            BarPresenter bar = Spawn<BarPresenter>(800f, 200f);
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+            registry.Tick(Viewer());
+
+            RectTransform north = FindDirection(bar, "N");
+            Assert.IsNotNull(north, "the cardinal letters are built with the pool");
+            Assert.AreEqual(0f, north.anchoredPosition.x, 1f);
+        }
+
+        /// <summary>Turning right slides the letters left, by the same mapping the
+        /// markers use. If these two ever disagreed the bar would read as drifting.</summary>
+        [Test]
+        public void TheLettersUseTheSameMappingAsTheMarkers()
+        {
+            BarPresenter bar = Spawn<BarPresenter>(800f, 200f);
+            bar.BarFieldOfView = 180f;
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+            registry.Tick(Viewer());
+
+            RectTransform east = FindDirection(bar, "E");
+            Assert.IsNotNull(east);
+            Assert.AreEqual(bar.XForBearing(90f), east.anchoredPosition.x, 1f);
+        }
+
+        /// <summary>
+        /// A marker's own sprite wins over the provider.
+        ///
+        /// The id and its array are right for a fixed icon set and wrong for the handful
+        /// of genuinely one-off markers, which would otherwise each need a permanent slot
+        /// in an array whose order is a contract with save data.
+        /// </summary>
+        [Test]
+        public void AMarkerIconOverrideBeatsTheProvider()
+        {
+            BarPresenter bar = Spawn<BarPresenter>();
+            Sprite fromProvider = MakeSprite();
+            Sprite own = MakeSprite();
+            bar.IconProvider = new StubIcons { Sprite = fromProvider };
+
+            var registry = new AtlasRegistry();
+            registry.AddProjection(new BearingProjection(), bar);
+
+            var fake = new Fake { At = new Vector3(0f, 0f, 20f) };
+            fake.Mark.IconOverride = own;
+            registry.Register(fake);
+            registry.Tick(Viewer());
+
+            foreach (Image image in bar.GetComponentsInChildren<Image>(false))
+            {
+                if (!image.enabled) continue;
+                Assert.AreSame(own, image.sprite);
+                return;
+            }
+
+            Assert.Fail("nothing was drawn");
+        }
+
+        private static RectTransform FindDirection(Component presenter, string label)
+        {
+            foreach (RectTransform rect in presenter.GetComponentsInChildren<RectTransform>(true))
+                if (rect.name == "Direction " + label) return rect;
+            return null;
+        }
+
     }
 }

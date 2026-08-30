@@ -92,6 +92,8 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
                 "Press play, hold right mouse to look, Tab for the readout.\n" +
                 "Watch the orbiting marker pass behind you: which end of the bar it leaves, and " +
                 "which screen edge its icon pins to.\n" +
+                "The bar dims while you stand still and returns when you turn. N, NE, E and " +
+                "the rest slide through the markers, and both views show distance.\n" +
                 "For a single-view scene, delete 'Compass Bar' or 'Screen Indicators' - the " +
                 "presenters register themselves, so removing one changes nothing else.\n" +
                 "No icons are assigned, so markers draw as tinted blanks; assign an " +
@@ -233,6 +235,12 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             var serialized = new SerializedObject(screen);
             serialized.FindProperty("icons").objectReferenceValue = icons;
             serialized.FindProperty("arrowSprite").objectReferenceValue = Arrow();
+
+            // UI_SmallArrowRIght points right, which is where a zero-degree off-screen
+            // angle points. Art that points up wants 90 here, and getting that wrong looks
+            // like a maths bug rather than a setting nobody filled in.
+            serialized.FindProperty("arrowRotationOffset").floatValue = 0f;
+            serialized.FindProperty("showDistanceLabels").boolValue = true;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -251,16 +259,30 @@ namespace LiminalLabs.Atlas.SampleM0.Editor
             rect.anchorMax = new Vector2(0.5f, 0f);
             rect.pivot = new Vector2(0.5f, 0f);
             rect.anchoredPosition = new Vector2(0f, 48f);
-            rect.sizeDelta = new Vector2(900f, 56f);
+
+            // Tall enough for the cardinal letters above the markers and the distance
+            // labels below them. A 56-high bar clips its own labels, and a clipped label
+            // reads as a broken font rather than as a bar that is too short.
+            rect.sizeDelta = new Vector2(900f, 76f);
 
             Image backing = barObject.GetComponent<Image>();
             backing.color = new Color(0f, 0f, 0f, 0.35f);
             backing.raycastTarget = false;
 
+            // A CanvasGroup for the idle fade. The bar dims while you stand still and
+            // returns the instant you turn, which is the difference between a compass you
+            // forget about and one you resent.
+            barObject.AddComponent<CanvasGroup>();
+
             var bar = barObject.AddComponent<BarPresenter>();
 
             var serialized = new SerializedObject(bar);
             serialized.FindProperty("icons").objectReferenceValue = icons;
+            serialized.FindProperty("markerY").floatValue = 10f;
+            serialized.FindProperty("labelOffsetY").floatValue = -24f;
+            serialized.FindProperty("directionY").floatValue = 26f;
+            serialized.FindProperty("includeDiagonals").boolValue = true;
+            serialized.FindProperty("fadeWhenIdle").boolValue = true;
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
     }

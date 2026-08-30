@@ -6,8 +6,14 @@ namespace LiminalLabs.Atlas
     /// Draws a solve list. That is the whole contract, and the narrowness is the point.
     ///
     /// <b>A presenter never queries the world.</b> No <c>Camera</c>, no <c>Transform</c>
-    /// belonging to anything it is drawing, no bearing arithmetic of its own. It receives
-    /// numbers that were computed once and draws them.
+    /// belonging to anything it is drawing. It receives the frame's viewer - already
+    /// flattened to a struct, already frozen - and a list of solves computed from it.
+    ///
+    /// The viewer is there for what a compass needs beyond its markers: N, E, S and W are
+    /// directions with no position, so no solve can carry them. A presenter may run the
+    /// pure functions in <see cref="AtlasMath"/> over that struct, and may do nothing
+    /// else - which keeps the guarantee that matters, since both views are then reading
+    /// the same frozen input through the same functions.
     ///
     /// That is what makes the compass and the screen indicators agree about what is
     /// behind you: they are not two implementations that happen to match, they are two
@@ -20,7 +26,7 @@ namespace LiminalLabs.Atlas
         /// Draw. The list is reused between frames and must not be retained - copy
         /// anything that needs to outlive the call.
         /// </summary>
-        void Present(IReadOnlyList<AtlasSolve> solves);
+        void Present(in AtlasViewer viewer, IReadOnlyList<AtlasSolve> solves);
     }
 
     /// <summary>

@@ -83,7 +83,7 @@ registry.
 | | |
 | --- | --- |
 | `Runtime/` | `LiminalLabs.Atlas` — registry, markers, spaces, solve, seams. **References nothing.** |
-| `Compass/` | `LiminalLabs.Atlas.Compass` — `BearingProjection` + `BarPresenter`. Needs core. |
+| `Compass/` | `LiminalLabs.Atlas.Compass` — `BearingProjection`, `BarPresenter`, cardinal letters. Needs core. |
 | `Screen/` | `LiminalLabs.Atlas.Screen` — `ScreenProjection` + `ScreenPresenter`. Needs core. |
 | `Console/` | optional — needs `com.liminallabs.core` |
 | `Editor/` | Setup and Validation checks; optional, needs core |

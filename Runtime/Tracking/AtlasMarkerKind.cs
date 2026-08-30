@@ -16,6 +16,21 @@ namespace LiminalLabs.Atlas
         Waypoint,
         Hostile,
         Ally,
+
+        /// <summary>Somewhere worth finding: a landmark, a vista, a locked door you will
+        /// come back to. Distinct from <see cref="Objective"/> because discovery is a
+        /// state the player changes and an objective is one the game hands out.</summary>
+        Discovery,
+
+        /// <summary>A place that can be travelled to. Its own kind rather than a
+        /// discovery, because it is the one marker players look for deliberately and
+        /// therefore the one worth filtering to on its own.</summary>
+        FastTravel,
+
+        /// <summary>Something happening, now, that will stop happening. Time-bounded,
+        /// which is what separates it from every other kind here.</summary>
+        Event,
+
         Custom,
     }
 }

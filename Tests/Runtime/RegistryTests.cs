@@ -28,10 +28,12 @@ namespace LiminalLabs.Atlas.Tests
         {
             public readonly List<AtlasSolve> Last = new List<AtlasSolve>();
             public int Presented;
+            public AtlasViewer LastViewer;
 
-            public void Present(IReadOnlyList<AtlasSolve> solves)
+            public void Present(in AtlasViewer viewer, IReadOnlyList<AtlasSolve> solves)
             {
                 Presented++;
+                LastViewer = viewer;
                 Last.Clear();
                 for (int i = 0; i < solves.Count; i++) Last.Add(solves[i]);
             }

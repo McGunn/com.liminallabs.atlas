@@ -1,22 +1,27 @@
 using System.Collections.Generic;
 using LiminalLabs.Core;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace LiminalLabs.Atlas
 {
     /// <summary>
-    /// A compass strip: markers slide left and right along a bar as the viewer turns.
+    /// A compass strip: markers slide left and right along a bar as the viewer turns,
+    /// with cardinal letters sliding through them.
     ///
-    /// Reads <see cref="AtlasSolve.Bearing"/> and nothing else. It does not know what a
-    /// camera is, never touches a tracked object's <c>Transform</c>, and does not
-    /// reference the screen-indicator assembly - which is what makes the two agree about
-    /// what is behind you rather than merely usually agreeing.
+    /// Reads <see cref="AtlasSolve.Bearing"/> and the frame's viewer, and nothing else.
+    /// It does not know what a camera is, never touches a tracked object's
+    /// <c>Transform</c>, and does not reference the screen-indicator assembly - which is
+    /// what makes the two agree about what is behind you rather than merely usually
+    /// agreeing.
     ///
-    /// Markers outside the bar's field of view are <b>hidden, not clamped</b>. A clamped
-    /// marker piles up at the end of the bar and reads as "there is something exactly
-    /// there", which is a lie; a hidden one reads as "it is not in front of you", which
-    /// is the truth.
+    /// <b>Markers slide off the ends and are clipped, not hidden.</b> An earlier version
+    /// hid them the instant they passed the bar's field of view, on the argument that a
+    /// marker clamped to the end lies about where the thing is. That argument was right
+    /// about clamping and wrong about the remedy: hiding pops, and a marker that vanishes
+    /// a pixel before the edge reads as a bug. Sliding out under a mask neither lies nor
+    /// pops, so a slot is only released once its marker is fully past the edge.
     /// </summary>
     [AddComponentMenu("Liminal Labs/Atlas/Bar Presenter")]
     [RequireComponent(typeof(RectTransform))]
@@ -32,6 +37,9 @@ namespace LiminalLabs.Atlas
         [Tooltip("Vertical offset of markers within the bar.")]
         [SerializeField] private float markerY;
 
+        [Tooltip("Clip anything that slides past the ends. Off only if a parent already masks.")]
+        [SerializeField] private bool clipToBar = true;
+
         [Header("Pool")]
         [Tooltip("Must be at least the registry's MaxMarkers. Allocated once, at Awake.")]
         [SerializeField, Min(1)] private int poolSize = 32;
@@ -39,14 +47,65 @@ namespace LiminalLabs.Atlas
         [Header("Icons")]
         [SerializeField] private AtlasSpriteIcons icons;
 
+        [Header("Distance")]
+        [Tooltip("Alpha against Fade, which is already 1 near and 0 at the cull distance.")]
+        [SerializeField] private AnimationCurve fadeCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+
+        [Tooltip("Scale at the far edge of visibility.")]
+        [SerializeField, Range(0.1f, 2f)] private float minScale = 0.8f;
+
+        [Tooltip("Scale up close.")]
+        [SerializeField, Range(0.1f, 2f)] private float maxScale = 1.2f;
+
+        [Header("Labels")]
+        [SerializeField] private bool showDistanceLabels = true;
+
+        [Tooltip("{0} is the distance in metres, already rounded.")]
+        [SerializeField] private string distanceFormat = "{0}m";
+
+        [SerializeField] private float labelSize = 14f;
+        [SerializeField] private float labelOffsetY = -22f;
+
+        [Header("Cardinal Letters")]
+        [SerializeField] private bool showDirections = true;
+
+        [Tooltip("Adds NE, SE, SW and NW to the four cardinals.")]
+        [SerializeField] private bool includeDiagonals;
+
+        [SerializeField] private Color directionColor = new Color(1f, 1f, 1f, 0.7f);
+        [SerializeField] private float directionSize = 18f;
+        [SerializeField] private float directionY = 4f;
+
+        [Header("Idle Fade")]
+        [Tooltip("Dim the whole bar while the viewer is still. Needs a CanvasGroup.")]
+        [SerializeField] private bool fadeWhenIdle;
+
+        [SerializeField] private CanvasGroup canvasGroup;
+        [SerializeField, Range(0f, 1f)] private float idleAlpha = 0.35f;
+        [SerializeField, Min(0.01f)] private float fadeSpeed = 4f;
+
+        [Header("Registry")]
+        [Tooltip("Leave empty to search this object's parents, then the scene.")]
+        [SerializeField] private AtlasRegistryBehaviour registry;
+
+        [Tooltip("Register with the registry automatically. Turn off to wire it in code.")]
+        [SerializeField] private bool selfRegister = true;
+
         private RectTransform bar;
         private Entry[] pool;
+        private Direction[] directions;
+        private TMP_FontAsset font;
+        private bool fontResolved;
+
+        private AtlasViewer lastViewer;
+        private bool hasLastViewer;
 
         /// <summary>Where icons come from. Assign in code to use a provider that is not
         /// a sprite array - the seam is the point.</summary>
         public IAtlasIconProvider IconProvider { get; set; }
 
-        /// <summary>Degrees the bar spans. Markers beyond half of this are hidden.</summary>
+        /// <summary>Degrees the bar spans. Markers beyond half of this slide off the
+        /// ends and are clipped.</summary>
         public float BarFieldOfView
         {
             get => barFieldOfView;
@@ -56,14 +115,6 @@ namespace LiminalLabs.Atlas
         /// <summary>How many markers this can draw at once. A frame with more is
         /// truncated by the registry before it gets here.</summary>
         public int Capacity => pool != null ? pool.Length : poolSize;
-
-
-        [Header("Registry")]
-        [Tooltip("Leave empty to search this object's parents, then the scene.")]
-        [SerializeField] private AtlasRegistryBehaviour registry;
-
-        [Tooltip("Register with the registry automatically. Turn off to wire it in code.")]
-        [SerializeField] private bool selfRegister = true;
 
         /// <summary>
         /// Whether this registers itself when enabled.
@@ -83,13 +134,10 @@ namespace LiminalLabs.Atlas
         /// Registers itself, so dropping the component in a scene is enough.
         ///
         /// The alternative was a line of code per presenter per scene -
-        /// <c>registry.AddProjection(new BearingProjection(), this)</c> - and a presenter that
-        /// looked correctly configured, drew nothing, and reported nothing when that line
-        /// was missing. Marker components already register themselves in OnEnable; there
-        /// was no reason for the drawing half to be different.
-        ///
-        /// Turn <c>selfRegister</c> off to keep the code-driven route, which is still what
-        /// a game with several viewers or a custom projection wants.
+        /// <c>registry.AddProjection(new BearingProjection(), this)</c> - and a presenter
+        /// that looked correctly configured, drew nothing, and reported nothing when that
+        /// line was missing. Marker components already register themselves in OnEnable;
+        /// there was no reason for the drawing half to be different.
         /// </summary>
         private void OnEnable()
         {
@@ -114,6 +162,7 @@ namespace LiminalLabs.Atlas
             // Unregisters on disable, destroy and scene unload alike, so a registry that
             // outlives a HUD is never left presenting into a destroyed pool.
             if (registry != null) registry.Registry.RemoveProjection(this);
+            hasLastViewer = false;
         }
 
         private void Awake()
@@ -121,7 +170,41 @@ namespace LiminalLabs.Atlas
             bar = (RectTransform)transform;
             if (IconProvider == null) IconProvider = icons;
 
+            if (clipToBar && GetComponent<RectMask2D>() == null) gameObject.AddComponent<RectMask2D>();
+            if (fadeWhenIdle && canvasGroup == null) canvasGroup = GetComponent<CanvasGroup>();
+
             BuildPool();
+            BuildDirections();
+        }
+
+        /// <summary>
+        /// A font for the labels without anyone having to assign one.
+        ///
+        /// TMP draws nothing at all when it has no default font asset, which is a fresh
+        /// project's normal state and reads as "the labels are broken" rather than as a
+        /// setting nobody filled in. Core already vendors typefaces for exactly this kind
+        /// of reason, so one is converted on demand and shared by every label on the bar.
+        /// </summary>
+        private TMP_FontAsset Font()
+        {
+            if (fontResolved) return font;
+            fontResolved = true;
+
+            font = TMP_Settings.defaultFontAsset;
+            if (font != null) return font;
+
+            Font fallback = LiminalFonts.Get(LiminalFontRole.Sans);
+            if (fallback != null) font = TMP_FontAsset.CreateFontAsset(fallback);
+
+            if (font == null)
+            {
+                Debug.LogWarning(
+                    $"[Atlas] '{name}' has no TMP font asset and core's fallback could not " +
+                    "be loaded, so bar labels will not draw. Assign a default font under " +
+                    "Project Settings > TextMeshPro.", this);
+            }
+
+            return font;
         }
 
         /// <summary>
@@ -150,47 +233,127 @@ namespace LiminalLabs.Atlas
                 var image = go.GetComponent<Image>();
                 image.raycastTarget = false;
 
+                TextMeshProUGUI label = showDistanceLabels ? BuildLabel(rect) : null;
+
                 go.SetActive(false);
-                pool[i] = new Entry(rect, image);
+                pool[i] = new Entry(rect, image, label);
             }
         }
 
-        public void Present(IReadOnlyList<AtlasSolve> solves)
+        private TextMeshProUGUI BuildLabel(RectTransform parent)
+        {
+            var go = new GameObject("Distance", typeof(RectTransform), typeof(TextMeshProUGUI));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(80f, 20f);
+            rect.anchoredPosition = new Vector2(0f, labelOffsetY);
+
+            var text = go.GetComponent<TextMeshProUGUI>();
+            text.font = Font();
+            text.fontSize = labelSize;
+            text.alignment = TextAlignmentOptions.Center;
+            text.raycastTarget = false;
+            text.textWrappingMode = TextWrappingModes.NoWrap;
+
+            return text;
+        }
+
+        /// <summary>
+        /// The cardinal letters, built once.
+        ///
+        /// North is +Z and east is +X, which is Unity's world convention rather than an
+        /// opinion of this package. A game whose world is laid out to a different compass
+        /// rotates its own root; it does not want the letters renamed.
+        /// </summary>
+        private void BuildDirections()
+        {
+            if (!showDirections)
+            {
+                directions = new Direction[0];
+                return;
+            }
+
+            var cardinals = new List<Direction>(8)
+            {
+                new Direction("N", Vector3.forward),
+                new Direction("E", Vector3.right),
+                new Direction("S", Vector3.back),
+                new Direction("W", Vector3.left),
+            };
+
+            if (includeDiagonals)
+            {
+                cardinals.Add(new Direction("NE", new Vector3(1f, 0f, 1f)));
+                cardinals.Add(new Direction("SE", new Vector3(1f, 0f, -1f)));
+                cardinals.Add(new Direction("SW", new Vector3(-1f, 0f, -1f)));
+                cardinals.Add(new Direction("NW", new Vector3(-1f, 0f, 1f)));
+            }
+
+            directions = cardinals.ToArray();
+
+            for (int i = 0; i < directions.Length; i++)
+            {
+                var go = new GameObject("Direction " + directions[i].Label,
+                    typeof(RectTransform), typeof(TextMeshProUGUI));
+                go.transform.SetParent(bar, false);
+
+                var rect = (RectTransform)go.transform;
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(48f, 24f);
+
+                var text = go.GetComponent<TextMeshProUGUI>();
+                text.font = Font();
+                text.text = directions[i].Label;
+                text.fontSize = directionSize;
+                text.color = directionColor;
+                text.alignment = TextAlignmentOptions.Center;
+                text.raycastTarget = false;
+                text.textWrappingMode = TextWrappingModes.NoWrap;
+
+                // Behind the markers: a cardinal letter is background information, and a
+                // waypoint disappearing behind an N would be the wrong way round.
+                go.transform.SetAsFirstSibling();
+
+                directions[i].Rect = rect;
+                directions[i].Text = text;
+            }
+        }
+
+        public void Present(in AtlasViewer viewer, IReadOnlyList<AtlasSolve> solves)
         {
             if (pool == null) return;
 
             float half = barFieldOfView * 0.5f;
             float width = bar.rect.width;
+            float edge = width * 0.5f + markerSize.x * 0.5f;
             int shown = 0;
 
             for (int i = 0; i < solves.Count && shown < pool.Length; i++)
             {
                 AtlasSolve solve = solves[i];
-
-                // Hidden, not clamped. See the class comment - this is the difference
-                // between a bar that tells the truth and one that looks plausible.
-                if (Mathf.Abs(solve.Bearing) > half) continue;
                 if (solve.Fade <= 0f) continue;
 
+                float x = XForBearing(solve.Bearing, half, width);
+
+                // Released only once fully past the edge. Anything still touching the bar
+                // keeps its slot and is clipped by the mask, so it slides rather than pops.
+                if (Mathf.Abs(x) > edge) continue;
+
                 Entry entry = pool[shown++];
+                entry.Rect.anchoredPosition = new Vector2(x, markerY);
 
-                // Linear in bearing across the bar: -half maps to the left edge, +half to
-                // the right, 0 to the centre. Test 22 asserts three points on that line.
-                float t = solve.Bearing / half;
-                entry.Rect.anchoredPosition = new Vector2(t * width * 0.5f, markerY);
+                float fade = Mathf.Clamp01(fadeCurve.Evaluate(Mathf.Clamp01(solve.Fade)));
+                entry.Rect.localScale = Vector3.one * AtlasMath.DistanceScale(fade, minScale, maxScale);
 
-                // Drawn whether or not a sprite resolved. An Image with no sprite renders
-                // a plain quad, which tinted is a readable blank marker - and a blank
-                // marker is what IAtlasIconProvider promises a missing icon costs.
-                //
-                // Disabling the Image instead made an unconfigured presenter draw nothing
-                // at all, which is indistinguishable from a registry that is not ticking,
-                // a marker that never registered, or a camera facing the wrong way. The
-                // system's whole promise is that a registered marker in view is visible;
-                // an unassigned icon list is a styling gap, not grounds to break it.
-                Sprite sprite = IconProvider != null
-                    ? IconProvider.Resolve(solve.Marker.IconId)
-                    : null;
+                Sprite sprite = solve.Marker.IconOverride != null
+                    ? solve.Marker.IconOverride
+                    : IconProvider != null ? IconProvider.Resolve(solve.Marker.IconId) : null;
 
                 Color tint = solve.Marker.Tint;
 
@@ -208,8 +371,14 @@ namespace LiminalLabs.Atlas
                 entry.Image.sprite = sprite;
                 entry.Image.enabled = true;
 
-                tint.a *= solve.Fade;
+                tint.a *= fade;
                 entry.Image.color = tint;
+
+                if (entry.Label != null)
+                {
+                    entry.Label.text = string.Format(distanceFormat, Mathf.RoundToInt(solve.Distance));
+                    entry.Label.color = tint;
+                }
 
                 if (!entry.Object.activeSelf) entry.Object.SetActive(true);
             }
@@ -220,6 +389,74 @@ namespace LiminalLabs.Atlas
             {
                 if (pool[i].Object.activeSelf) pool[i].Object.SetActive(false);
             }
+
+            PresentDirections(viewer, half, width, edge);
+            PresentIdleFade(viewer);
+        }
+
+        /// <summary>
+        /// Linear in bearing across the bar: -half maps to the left edge, +half to the
+        /// right, 0 to the centre.
+        ///
+        /// Public because it is the bar's whole coordinate system, and anything drawing
+        /// alongside these markers - a custom overlay, a tutorial arrow - has to agree
+        /// with it rather than re-deriving it and drifting.
+        /// </summary>
+        public float XForBearing(float bearing) =>
+            XForBearing(bearing, barFieldOfView * 0.5f, bar != null ? bar.rect.width : 0f);
+
+        private static float XForBearing(float bearing, float half, float width) =>
+            half <= 0f ? 0f : bearing / half * width * 0.5f;
+
+        private void PresentDirections(in AtlasViewer viewer, float half, float width, float edge)
+        {
+            if (directions == null) return;
+
+            for (int i = 0; i < directions.Length; i++)
+            {
+                Direction direction = directions[i];
+                if (direction.Rect == null) continue;
+
+                float bearing = AtlasMath.BearingOfDirection(viewer, direction.World);
+                float x = XForBearing(bearing, half, width);
+
+                bool visible = Mathf.Abs(x) <= edge;
+                if (direction.Rect.gameObject.activeSelf != visible)
+                    direction.Rect.gameObject.SetActive(visible);
+
+                if (visible) direction.Rect.anchoredPosition = new Vector2(x, directionY);
+            }
+        }
+
+        /// <summary>
+        /// Dims the bar while the viewer is still.
+        ///
+        /// The activity measure is computed from two frozen viewers by
+        /// <see cref="AtlasMath.Activity"/> rather than read off a rigidbody or an input
+        /// axis, so a compass on a cutscene camera, a drone or a replay fades on the same
+        /// rule as one on a player.
+        /// </summary>
+        private void PresentIdleFade(in AtlasViewer viewer)
+        {
+            if (!fadeWhenIdle || canvasGroup == null)
+            {
+                lastViewer = viewer;
+                hasLastViewer = true;
+                return;
+            }
+
+            float target = 1f;
+            if (hasLastViewer)
+            {
+                float activity = AtlasMath.Activity(lastViewer, viewer, Time.deltaTime);
+                target = Mathf.Lerp(idleAlpha, 1f, activity);
+            }
+
+            canvasGroup.alpha = Mathf.MoveTowards(
+                canvasGroup.alpha, target, fadeSpeed * Time.deltaTime);
+
+            lastViewer = viewer;
+            hasLastViewer = true;
         }
 
         /// <summary>How many markers are visible right now. For tests and diagnostics.</summary>
@@ -247,13 +484,31 @@ namespace LiminalLabs.Atlas
         {
             public readonly RectTransform Rect;
             public readonly Image Image;
+            public readonly TextMeshProUGUI Label;
             public readonly GameObject Object;
 
-            public Entry(RectTransform rect, Image image)
+            public Entry(RectTransform rect, Image image, TextMeshProUGUI label)
             {
                 Rect = rect;
                 Image = image;
+                Label = label;
                 Object = rect.gameObject;
+            }
+        }
+
+        private struct Direction
+        {
+            public readonly string Label;
+            public readonly Vector3 World;
+            public RectTransform Rect;
+            public TextMeshProUGUI Text;
+
+            public Direction(string label, Vector3 world)
+            {
+                Label = label;
+                World = world;
+                Rect = null;
+                Text = null;
             }
         }
     }

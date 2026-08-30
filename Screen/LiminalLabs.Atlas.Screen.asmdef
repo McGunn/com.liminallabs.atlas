@@ -3,7 +3,8 @@
     "rootNamespace": "LiminalLabs.Atlas",
     "references": [
         "LiminalLabs.Atlas",
-        "LiminalLabs.Core"
+        "LiminalLabs.Core",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

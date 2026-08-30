@@ -219,7 +219,7 @@ namespace LiminalLabs.Atlas
                 if (output.Solves.Count > settings.MaxMarkers)
                     output.Solves.RemoveRange(settings.MaxMarkers, output.Solves.Count - settings.MaxMarkers);
 
-                output.Presenter.Present(output.Solves);
+                output.Presenter.Present(viewer, output.Solves);
             }
         }
 
