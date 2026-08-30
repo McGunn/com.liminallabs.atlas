@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.3.1] — spaces you can actually author
+
+### Fixed
+
+- **A world map framed to a space's bounds framed nothing.** `AtlasRegistry` is a plain
+  object built when its component wakes, so anything an editor script writes into its
+  spaces is thrown away before play. The bounds were therefore always zero, "frame the
+  whole space" silently fell back to `Radius` — a minimap's number — and the world map
+  came out *smaller* than the minimap beside it.
+
+  The real gap was that **M1 shipped a space model with no authoring path at all.**
+
+### Added
+
+- **`AtlasSpaceBehaviour`** — a space, authored in a scene: bounds, image, floor height,
+  and a gizmo, applied to the registry when the scene wakes. The bounds are in world
+  units and are what the projection frames, what a baked image will cover at M3, and what
+  a reveal mask will be indexed against at M4 — so the gizmo is there to make getting them
+  right a one-minute job.
+- **Zoom and pan** on `MapProjection` and `MinimapPresenter`: `Zoom`, `ZoomBy`, `PanBy`,
+  `ResetFraming`, `MapUnitsPerPixel`. Zoom is a *multiplier* on the framed radius, which
+  is the only way "frame the whole space" and "zoomed in two steps" can both be true —
+  an absolute second radius would overwrite whatever the bounds computed, and the map
+  would forget how big the world is the moment anyone touched the wheel.
+- The M1 sample wires scroll to zoom, drag to pan and R to reset. The pan is scaled by
+  the map's own units-per-pixel, so it tracks the cursor exactly at any zoom.
+- A Setup and Validation failure for the exact defect above: Space Bounds centring with
+  no `AtlasSpaceBehaviour` in the scene, and a runtime warning if it happens anyway.
+
 ## [0.3.0] — M1, the map
 
 A map is not a texture. It is a plane with a world transform, which is what the space

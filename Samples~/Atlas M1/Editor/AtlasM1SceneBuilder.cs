@@ -56,10 +56,21 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             var registry = registryObject.AddComponent<AtlasRegistryBehaviour>();
             registry.ViewerCamera = camera;
 
-            // The space knows how big it is, which is what lets the world map frame itself
-            // with no authored numbers - and, from M3, what a baked image will cover.
-            registry.Registry.Spaces.Default.WorldBounds =
-                new Bounds(Vector3.zero, new Vector3(400f, 20f, 400f));
+            // The space, authored as a component.
+            //
+            // Writing straight into registry.Registry.Spaces here would do nothing: the
+            // registry is a plain object built when the component wakes, so anything an
+            // editor script puts into it is thrown away before play. The world map then
+            // framed a space whose bounds were always zero and fell back to a radius meant
+            // for a minimap - which is exactly what it looked like.
+            var spaceObject = new GameObject("Atlas Space");
+            var space = spaceObject.AddComponent<AtlasSpaceBehaviour>();
+
+            var spaceFields = new SerializedObject(space);
+            spaceFields.FindProperty("boundsSize").vector3Value = new Vector3(400f, 20f, 400f);
+            spaceFields.FindProperty("centreOnTransform").boolValue = false;
+            spaceFields.FindProperty("boundsCentre").vector3Value = Vector3.zero;
+            spaceFields.ApplyModifiedPropertiesWithoutUndo();
 
             GameObject orbiting = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             orbiting.name = "Orbiting Signal";
@@ -86,6 +97,8 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             var serialized = new SerializedObject(demo);
             serialized.FindProperty("registry").objectReferenceValue = registry;
             serialized.FindProperty("worldMap").objectReferenceValue = worldMap;
+            serialized.FindProperty("worldMapPresenter").objectReferenceValue =
+                worldMap.GetComponent<MinimapPresenter>();
             serialized.FindProperty("orbiting").objectReferenceValue = orbiting.transform;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
@@ -100,6 +113,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
                 "WASD to move, hold right mouse to look, M for the world map.\n" +
                 "The minimap turns under a fixed arrow; the world map does not turn at all. " +
                 "Same markers, same solve, two framings of one projection.\n" +
+                "On the world map: scroll to zoom, drag with the left mouse to pan, R to reset.\n" +
                 "Watch a landmark pin to the minimap's circle while it is still sitting in " +
                 "place on the world map: " + minimap.name + " is following you, the world map is not.");
         }

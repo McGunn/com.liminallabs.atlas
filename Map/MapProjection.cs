@@ -75,6 +75,33 @@ namespace LiminalLabs.Atlas
         /// </summary>
         public float CullRadiusFraction { get; set; } = 4f;
 
+        /// <summary>
+        /// Multiplies the framed radius. 1 is the authored size; smaller is zoomed in.
+        ///
+        /// A multiplier rather than a second radius so that zoom composes with every
+        /// centring mode: SpaceBounds computes its radius from the space and then this
+        /// scales it, which is the only way "frame the whole map" and "zoom in" can both
+        /// be true at once.
+        /// </summary>
+        public float Zoom
+        {
+            get => zoom;
+            set => zoom = Mathf.Clamp(value, MinZoom, MaxZoom);
+        }
+
+        /// <summary>Closest zoom. Below this a map is a magnifying glass with no context.</summary>
+        public float MinZoom { get; set; } = 0.1f;
+
+        /// <summary>Furthest zoom. Above this the markers are closer together than they
+        /// are wide, and the map says less than the compass.</summary>
+        public float MaxZoom { get; set; } = 2f;
+
+        /// <summary>Offsets the frame's centre, in map units. What panning moves.</summary>
+        public Vector2 Pan { get; set; }
+
+        private float zoom = 1f;
+        private bool warnedAboutEmptyBounds;
+
         /// <summary>The frame the last <see cref="Solve"/> produced. A presenter needs it
         /// to draw the background image and the compass rose the same way up as the
         /// markers, and recomputing it there is how the two come to disagree.</summary>
@@ -147,6 +174,7 @@ namespace LiminalLabs.Atlas
             {
                 case AtlasMapCentre.Fixed:
                     centre = FixedCentre;
+                    radius = Radius * Zoom;
                     break;
 
                 case AtlasMapCentre.SpaceBounds when space != null:
@@ -158,13 +186,33 @@ namespace LiminalLabs.Atlas
                     // silently cropping a space that is wider than it is tall.
                     Vector2 extentOnPlane = space.ToMap(bounds.center + bounds.extents) - centre;
                     float fromBounds = Mathf.Max(Mathf.Abs(extentOnPlane.x), Mathf.Abs(extentOnPlane.y));
-                    if (fromBounds > AtlasMath.Epsilon) radius = fromBounds;
+
+                    if (fromBounds > AtlasMath.Epsilon)
+                    {
+                        radius = fromBounds * Zoom;
+                    }
+                    else if (!warnedAboutEmptyBounds)
+                    {
+                        // Silently keeping the authored radius is what made a world map
+                        // come out smaller than the minimap beside it: the space's bounds
+                        // were never set, so "frame the whole space" framed a 60-unit
+                        // circle and looked like a broken map rather than an unset field.
+                        warnedAboutEmptyBounds = true;
+                        Debug.LogWarning(
+                            "[Atlas] A map is framed to space bounds, but '" + space.Name +
+                            "' has none, so it is falling back to Radius. Author the space " +
+                            "with an AtlasSpaceBehaviour and size its bounds to the playable " +
+                            "area - nothing writes them at runtime.");
+                    }
                     break;
 
                 default:
                     centre = space != null ? space.ToMap(viewer.Position) : Flatten(viewer.Position);
+                    radius = Radius * Zoom;
                     break;
             }
+
+            centre += Pan;
 
             // Negated, and the negation is the whole of viewer-up. BearingOfDirection
             // says where north is relative to the viewer; the map has to turn by the

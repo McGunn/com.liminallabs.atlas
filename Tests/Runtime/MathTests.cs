@@ -424,5 +424,42 @@ namespace LiminalLabs.Atlas.Tests
             Assert.IsFalse(float.IsNaN(AtlasMath.MapPoint(frame, new Vector2(1f, 1f)).x));
         }
 
+
+        // ---- zoom -------------------------------------------------------------
+
+        /// <summary>
+        /// Zoom multiplies the framed radius rather than replacing it.
+        ///
+        /// A multiplier is the only way "frame the whole space" and "zoomed in two steps"
+        /// can both be true: a second absolute radius would have to overwrite whatever the
+        /// space's bounds computed, and the map would forget how big the world is the
+        /// moment anyone touched the wheel.
+        /// </summary>
+        [Test]
+        public void ZoomingInHalvesTheFramedSpan()
+        {
+            var wide = new AtlasMapFrame(Vector2.zero, 100f);
+            var close = new AtlasMapFrame(Vector2.zero, 50f);
+
+            Vector2 atWide = AtlasMath.MapPoint(wide, new Vector2(0f, 50f));
+            Vector2 atClose = AtlasMath.MapPoint(close, new Vector2(0f, 50f));
+
+            Assert.AreEqual(0.75f, atWide.y, 0.0001f, "halfway to the edge at radius 100");
+            Assert.AreEqual(1f, atClose.y, 0.0001f, "on the edge at radius 50");
+        }
+
+        /// <summary>Panning the frame moves what is at its centre, and nothing else.</summary>
+        [Test]
+        public void PanningMovesTheCentreOnly()
+        {
+            var panned = new AtlasMapFrame(new Vector2(25f, 0f), 50f);
+
+            Vector2 at = AtlasMath.MapPoint(panned, new Vector2(25f, 0f));
+            Assert.AreEqual(0.5f, at.x, 0.0001f, "the panned-to point is now the centre");
+
+            Vector2 origin = AtlasMath.MapPoint(panned, Vector2.zero);
+            Assert.Less(origin.x, 0.5f, "and the old centre has moved left by the pan");
+        }
+
     }
 }

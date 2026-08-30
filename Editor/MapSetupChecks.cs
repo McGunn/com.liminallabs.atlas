@@ -72,6 +72,21 @@ namespace LiminalLabs.Atlas.Editor
                         () => AtlasEditorScene.Select(captured), "Select");
                 }
 
+                // The defect this check exists for. A world map framed to a space with no
+                // authored bounds falls back to its own Radius, which is a minimap's
+                // number - so it comes out smaller than the minimap beside it and looks
+                // like a broken map rather than an unset field. Nothing writes the bounds
+                // at runtime, and an editor script cannot: the registry is built fresh
+                // when the component wakes.
+                if (map.Projection.Centre == AtlasMapCentre.SpaceBounds && !HasAuthoredSpace())
+                {
+                    report.Fail($"'{map.name}' frames a space that nothing authors",
+                        "Centre is Space Bounds, but there is no AtlasSpaceBehaviour in the " +
+                        "scene, so the space's bounds are zero and the map falls back to " +
+                        "Radius. Add one and size its bounds to the playable area.",
+                        () => AtlasEditorScene.Select(captured), "Select");
+                }
+
                 if (map.Projection.Radius <= 1f)
                 {
                     report.Fail($"'{map.name}' has a radius of {map.Projection.Radius:0.##}",
@@ -83,5 +98,8 @@ namespace LiminalLabs.Atlas.Editor
 
             if (maps.Length > 0) report.Pass($"{maps.Length} map presenter(s) wired");
         }
+
+        private static bool HasAuthoredSpace() =>
+            AtlasEditorScene.FindAll<AtlasSpaceBehaviour>().Length > 0;
     }
 }

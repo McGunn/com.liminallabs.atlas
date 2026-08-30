@@ -110,6 +110,51 @@ namespace LiminalLabs.Atlas
             }
         }
 
+        /// <summary>
+        /// Multiplies the framed radius. 1 is the authored size, smaller is zoomed in.
+        ///
+        /// A multiplier rather than a second radius, so zoom works the same on a map framed
+        /// to a space's bounds as on one with an authored radius - "show the whole map" and
+        /// "zoomed in two steps" have to be able to be true at the same time.
+        /// </summary>
+        public float Zoom
+        {
+            get => Projection.Zoom;
+            set => Projection.Zoom = value;
+        }
+
+        /// <summary>
+        /// Zooms about the centre by a multiplicative step.
+        ///
+        /// Multiplicative because zoom is perceived that way: a fixed additive step is
+        /// glacial when zoomed out and jumps a whole map when zoomed in, and the wheel
+        /// feels broken at one end or the other.
+        /// </summary>
+        public void ZoomBy(float step) => Zoom *= Mathf.Max(0.0001f, step);
+
+        /// <summary>Moves the frame, in map units. Only meaningful on a map that is not
+        /// following the viewer, which would re-centre it next tick.</summary>
+        public void PanBy(Vector2 delta) => Projection.Pan += delta;
+
+        /// <summary>Back to the authored framing: no zoom, no pan.</summary>
+        public void ResetFraming()
+        {
+            Projection.Zoom = 1f;
+            Projection.Pan = Vector2.zero;
+        }
+
+        /// <summary>Map units per unit of rect. What a drag in pixels has to be multiplied
+        /// by to pan the map under the cursor exactly.</summary>
+        public float MapUnitsPerPixel
+        {
+            get
+            {
+                Rect bounds = area != null ? area.rect : new Rect(0f, 0f, 1f, 1f);
+                float across = Mathf.Max(bounds.width, AtlasMath.Epsilon);
+                return Projection.LastFrame.Span / across;
+            }
+        }
+
         private MapProjection BuildProjection() => new MapProjection
         {
             Centre = centre,

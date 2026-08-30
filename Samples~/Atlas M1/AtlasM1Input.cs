@@ -47,6 +47,28 @@ namespace LiminalLabs.Atlas.SampleM1
                 return new Vector2(x, y);
             }
         }
+
+        public static bool DragHeld => Mouse.current != null && Mouse.current.leftButton.isPressed;
+
+        public static Vector2 DragDelta => Mouse.current == null
+            ? Vector2.zero
+            : Mouse.current.delta.ReadValue();
+
+        /// <summary>One notch of the wheel, normalised. The Input System reports 120 per
+        /// notch on Windows and 1 elsewhere, so it is divided down to something a zoom
+        /// step can be multiplied by on either.</summary>
+        public static float ScrollNotches
+        {
+            get
+            {
+                if (Mouse.current == null) return 0f;
+                float raw = Mouse.current.scroll.ReadValue().y;
+                return Mathf.Abs(raw) >= 100f ? raw / 120f : raw;
+            }
+        }
+
+        public static bool ResetPressed =>
+            Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
 #else
         public static bool ToggleMapPressed => Input.GetKeyDown(KeyCode.M);
 
@@ -57,6 +79,15 @@ namespace LiminalLabs.Atlas.SampleM1
 
         public static Vector2 Move =>
             new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+
+        public static bool DragHeld => Input.GetMouseButton(0);
+
+        public static Vector2 DragDelta =>
+            new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * 10f;
+
+        public static float ScrollNotches => Input.GetAxis("Mouse ScrollWheel") * 10f;
+
+        public static bool ResetPressed => Input.GetKeyDown(KeyCode.R);
 #endif
     }
 }
