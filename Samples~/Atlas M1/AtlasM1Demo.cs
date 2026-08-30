@@ -41,6 +41,14 @@ namespace LiminalLabs.Atlas.SampleM1
         private float pitch;
         private bool worldMapOpen;
 
+        private Vector3 waypointPosition;
+        private AtlasHandle waypointHandle;
+        private bool hasWaypoint;
+
+        private Vector2 pressedAt;
+        private bool dragMoved;
+        private string mapMessage = "";
+
         private void Start()
         {
             if (registry == null) registry = FindAnyObjectByType<AtlasRegistryBehaviour>();
@@ -110,13 +118,121 @@ namespace LiminalLabs.Atlas.SampleM1
             if (Mathf.Abs(notches) > 0.01f)
                 worldMapPresenter.ZoomBy(Mathf.Pow(zoomStep, -notches));
 
+            // Press, drag, release. A click and a drag start identically, so which one it
+            // was is only knowable at release - hence the movement threshold rather than
+            // acting on press. Acting on press would place a waypoint every time someone
+            // began panning, which is the single most annoying way to get this wrong.
+            if (AtlasM1Input.DragPressed)
+            {
+                pressedAt = AtlasM1Input.PointerPosition;
+                dragMoved = false;
+            }
+
             if (AtlasM1Input.DragHeld)
             {
                 Vector2 drag = AtlasM1Input.DragDelta * worldMapPresenter.MapUnitsPerPixel;
                 worldMapPresenter.PanBy(-drag);
+
+                if ((AtlasM1Input.PointerPosition - pressedAt).sqrMagnitude > ClickSlop * ClickSlop)
+                    dragMoved = true;
             }
 
+            if (AtlasM1Input.DragReleased && !dragMoved) ClickMap(AtlasM1Input.PointerPosition);
+
+            if (AtlasM1Input.ClearPressed) ClearWaypoint();
             if (AtlasM1Input.ResetPressed) worldMapPresenter.ResetFraming();
+        }
+
+        /// <summary>Pixels of movement that still counts as a click rather than a drag.</summary>
+        private const float ClickSlop = 6f;
+
+        /// <summary>
+        /// A click on the map: name what is under it, or drop a waypoint where it is.
+        ///
+        /// Marker first, empty space second - clicking an objective to ask about it is a
+        /// more common intent than dropping a waypoint exactly on top of one, and the map
+        /// hit-tests where markers were <i>drawn</i>, so clicking a pinned icon at the edge
+        /// finds the marker it stands for rather than whatever is at that map position.
+        /// </summary>
+        private void ClickMap(Vector2 screenPosition)
+        {
+            var rect = (RectTransform)worldMapPresenter.transform;
+
+            // Screen-space-overlay canvases pass a null camera; anything else needs its
+            // own. Getting this wrong puts every click in the corner.
+            Canvas canvas = worldMapPresenter.GetComponentInParent<Canvas>();
+            Camera uiCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay
+                ? canvas.worldCamera
+                : null;
+
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    rect, screenPosition, uiCamera, out Vector2 local))
+            {
+                return;
+            }
+
+            if (!rect.rect.Contains(local)) return;
+
+            if (worldMapPresenter.TryGetMarkerAt(local, out AtlasSolve solve))
+            {
+                mapMessage = $"{solve.Marker.Label ?? solve.Marker.Kind.ToString()} — " +
+                             $"{solve.Distance:0} m, {Describe(solve.Level)}";
+                return;
+            }
+
+            if (worldMapPresenter.TryGetWorldPosition(local, out Vector3 world)) PlaceWaypoint(world);
+        }
+
+        private static string Describe(AtlasElevation level) =>
+            level == AtlasElevation.Above ? "above you"
+            : level == AtlasElevation.Below ? "below you"
+            : "on your level";
+
+        /// <summary>
+        /// The delegate entry point, doing the thing it exists for.
+        ///
+        /// A player-placed waypoint has no GameObject and never needs one: it is a position
+        /// and a marker. Tracking it through Track(() =&gt; position, ...) is the same
+        /// mechanism a strategy game uses for ten thousand units, at a count of one.
+        /// </summary>
+        private void PlaceWaypoint(Vector3 world)
+        {
+            waypointPosition = world;
+            mapMessage = $"Waypoint at {world.x:0}, {world.z:0}";
+
+            if (hasWaypoint) return;
+
+            waypointHandle = registry.Registry.Track(() => waypointPosition, new AtlasMarker
+            {
+                Kind = AtlasMarkerKind.Waypoint,
+                Label = "Waypoint",
+                IconId = AtlasM1Icons.Objective,
+                Tint = new Color(0.4f, 1f, 0.6f),
+                Priority = 2f,          // above the landmarks, so declutter moves them
+            }, AtlasSpaceId.Default);
+
+            hasWaypoint = true;
+        }
+
+        private void ClearWaypoint()
+        {
+            if (!hasWaypoint) return;
+
+            registry.Registry.Release(waypointHandle);
+            hasWaypoint = false;
+            mapMessage = "Waypoint cleared";
+        }
+
+        /// <summary>
+        /// Releases the waypoint handle.
+        ///
+        /// A delegate has no component to unregister it, so releasing is the caller's job -
+        /// and forgetting leaves the registry calling into a closure that outlived its
+        /// scene, which is the one way the delegate entry point can bite.
+        /// </summary>
+        private void OnDestroy()
+        {
+            if (hasWaypoint && registry != null) registry.Registry.Release(waypointHandle);
         }
 
         private void ToggleWorldMap()
@@ -172,9 +288,12 @@ namespace LiminalLabs.Atlas.SampleM1
         {
             GUI.Label(new Rect(12f, 12f, 900f, 20f),
                 "WASD to move, hold right mouse to look, [M] for the world map.");
+            if (worldMapOpen && mapMessage.Length > 0)
+                GUI.Label(new Rect(12f, 48f, 900f, 20f), mapMessage);
+
             GUI.Label(new Rect(12f, 30f, 900f, 20f),
                 worldMapOpen
-                    ? "Same projection, bigger radius, no rotation.  Scroll to zoom, drag to pan, [R] to reset."
+                    ? "Scroll to zoom, drag to pan, click a marker or empty space, [C] clears, [R] resets."
                     : "The minimap turns with you under a fixed arrow. Markers past its edge pin to the circle.");
         }
 

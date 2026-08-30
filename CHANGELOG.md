@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.6.1] — the map answers clicks
+
+### Added
+
+- **The M1 sample uses the map interaction it shipped.** Click a marker on the world map
+  and it names it with distance and elevation; click empty space and a waypoint lands
+  there; `C` clears it.
+
+  The click is detected on **release, with a movement threshold**, because a click and a
+  drag begin identically and which one it was is only knowable at the end. Acting on press
+  would drop a waypoint every time someone started panning, which is the single most
+  annoying way to get this wrong.
+
+  Markers are tested before empty space: clicking an objective to ask about it is a more
+  common intent than dropping a waypoint exactly on one.
+
+- The waypoint uses `Track(() => position, marker, space)` — the delegate entry point doing
+  the thing it exists for. A player-placed waypoint has no GameObject and never needs one;
+  it is the same mechanism a strategy game uses for ten thousand units, at a count of one.
+  Released in `OnDestroy`, because a delegate has no component to unregister it.
+
+### Fixed
+
+- **The M1 sample's legacy input branch had never been compiled.** Its `#else` path existed
+  and was assumed to work. There is a legacy twin build spec now, regenerated with the
+  others, so both branches of both samples' input shims are compiled every run — a
+  define-gated file built only one way is only half checked.
+
+- Removed `menu.rsp` from the build harness: 232 sources, every one already covered by the
+  game specs, referencing editor assemblies that never existed. Twelve more specs pointed
+  at a different session's scratchpad directory.
+
+
 ## [0.6.0] — one solve, actually once
 
 ### Changed — the optimisation the README was already claiming

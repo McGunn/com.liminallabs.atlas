@@ -69,6 +69,19 @@ namespace LiminalLabs.Atlas.SampleM1
 
         public static bool ResetPressed =>
             Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame;
+
+        public static bool DragPressed =>
+            Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+
+        public static bool DragReleased =>
+            Mouse.current != null && Mouse.current.leftButton.wasReleasedThisFrame;
+
+        public static Vector2 PointerPosition => Mouse.current == null
+            ? Vector2.zero
+            : Mouse.current.position.ReadValue();
+
+        public static bool ClearPressed =>
+            Keyboard.current != null && Keyboard.current.cKey.wasPressedThisFrame;
 #else
         public static bool ToggleMapPressed => Input.GetKeyDown(KeyCode.M);
 
@@ -88,6 +101,14 @@ namespace LiminalLabs.Atlas.SampleM1
         public static float ScrollNotches => Input.GetAxis("Mouse ScrollWheel") * 10f;
 
         public static bool ResetPressed => Input.GetKeyDown(KeyCode.R);
+
+        public static bool DragPressed => Input.GetMouseButtonDown(0);
+
+        public static bool DragReleased => Input.GetMouseButtonUp(0);
+
+        public static Vector2 PointerPosition => Input.mousePosition;
+
+        public static bool ClearPressed => Input.GetKeyDown(KeyCode.C);
 #endif
     }
 }
