@@ -70,6 +70,10 @@ namespace LiminalLabs.Atlas
                  "AtlasDiscovery's own timer, so this is a second ceiling, not a poll.")]
         [SerializeField, Min(0.05f)] private float fogRefreshInterval = 0.25f;
 
+        [Tooltip("Cells of blur on the fog edge. 0 is a hard boundary the cells are " +
+                 "visible in; 2 or 3 reads as fog rather than as a grid.")]
+        [SerializeField, Range(0, 6)] private int fogSoftness = 2;
+
         [Header("Viewer")]
         [Tooltip("Drawn at the centre. Rotates to the viewer's facing on a north-up map, " +
                  "and stays pointing up on a viewer-up one.")]
@@ -105,6 +109,8 @@ namespace LiminalLabs.Atlas
 
         private Texture2D fogTexture;
         private Color32[] fogPixels;
+        private float[] fogCoverage;
+        private float[] fogScratch;
         private int fogVersion = -1;
         private float nextFogRefresh;
 
@@ -475,20 +481,78 @@ namespace LiminalLabs.Atlas
                     hideFlags = HideFlags.HideAndDontSave,
                 };
                 fogPixels = new Color32[width * height];
+                fogCoverage = new float[width * height];
+                fogScratch = new float[width * height];
             }
-
-            var hidden = (Color32)fogColor;
-            var seen = new Color32(hidden.r, hidden.g, hidden.b, 0);
 
             for (int y = 0; y < height; y++)
             {
                 int row = y * width;
                 for (int x = 0; x < width; x++)
-                    fogPixels[row + x] = reveal.IsRevealed(x, y) ? seen : hidden;
+                    fogCoverage[row + x] = reveal.IsRevealed(x, y) ? 0f : 1f;
+            }
+
+            if (fogSoftness > 0) Blur(width, height, fogSoftness);
+
+            var tint = (Color32)fogColor;
+            float alpha = fogColor.a * 255f;
+
+            for (int i = 0; i < fogPixels.Length; i++)
+            {
+                fogPixels[i] = new Color32(
+                    tint.r, tint.g, tint.b, (byte)Mathf.Clamp(fogCoverage[i] * alpha, 0f, 255f));
             }
 
             fogTexture.SetPixels32(fogPixels);
             fogTexture.Apply(false);
+        }
+
+        /// <summary>
+        /// A separable box blur over the coverage, which is what turns a grid of bits into
+        /// something that reads as fog.
+        ///
+        /// Separable because a radius-3 box is 49 samples done naively and 14 done in two
+        /// passes, and this runs over 65,000 cells a few times a second while walking.
+        /// Outside the mask counts as revealed, matching
+        /// <see cref="AtlasReveal.IsRevealed"/> - so the fog fades out at the map's edge
+        /// rather than being clipped hard against it.
+        ///
+        /// Done here rather than in a shader on purpose: the package ships no material, no
+        /// keyword and nothing that breaks when a project changes render pipeline, and a
+        /// blur this cheap does not need the GPU.
+        /// </summary>
+        private void Blur(int width, int height, int radius)
+        {
+            float span = radius * 2 + 1;
+
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    float sum = 0f;
+                    for (int k = -radius; k <= radius; k++)
+                    {
+                        int at = x + k;
+                        sum += at < 0 || at >= width ? 0f : fogCoverage[row + at];
+                    }
+                    fogScratch[row + x] = sum / span;
+                }
+            }
+
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    float sum = 0f;
+                    for (int k = -radius; k <= radius; k++)
+                    {
+                        int at = y + k;
+                        sum += at < 0 || at >= height ? 0f : fogScratch[at * width + x];
+                    }
+                    fogCoverage[y * width + x] = sum / span;
+                }
+            }
         }
 
         private void OnDestroy()

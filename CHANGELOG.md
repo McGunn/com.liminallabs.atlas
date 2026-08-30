@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.5.0] — soft fog and a legend
+
+### Added
+
+- **`AtlasLegend`** — one row per marker kind, each a toggle that filters the maps.
+
+  Two jobs that are usually two components and should not be. A legend that only labels
+  the icons is a key nobody reads twice; a filter with no icons is a list of words.
+  Together they answer both questions a player has about a crowded map — *what is that*
+  and *show me only those* — with one row each.
+
+  Rows are built from the kinds actually being tracked, so a project that adds a kind gets
+  a legend that already agrees with its map. A legend maintained by hand is wrong within a
+  month.
+
+- **Soft fog.** A separable box blur over the coverage before the texture is written, which
+  is what turns a grid of bits into something that reads as fog rather than as a grid.
+
+  Separable because a radius-3 box is 49 samples naively and 14 in two passes, over 65,000
+  cells a few times a second. Still no shader, no material and no keyword — the package
+  keeps working when a project changes render pipeline, and a blur this cheap does not
+  need the GPU.
+
+- The M1 sample gets a legend down the left of the world map. It is a child of the map, so
+  opening the map opens its legend and there is no second thing to remember to show.
+- A Setup and Validation warning for a legend with no icon provider — it would label every
+  kind correctly and illustrate none of them.
+
+
 ## [0.4.1] — the fog you can see
 
 ### Added

@@ -101,6 +101,8 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             AddCompassBar(canvas, icons);
             MinimapPresenter minimap = AddMinimap(canvas, icons);
             GameObject worldMap = AddWorldMap(canvas, icons);
+            AddLegend(worldMap.GetComponent<RectTransform>(), icons,
+                      worldMap.GetComponent<MinimapPresenter>());
 
             var demo = registryObject.AddComponent<AtlasM1Demo>();
             var serialized = new SerializedObject(demo);
@@ -252,6 +254,46 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             image.enabled = false;   // switched on when the space has a mask
 
             return image;
+        }
+
+        /// <summary>
+        /// The legend, down the left of the world map.
+        ///
+        /// A child of the map, so opening the map opens its legend and there is no second
+        /// thing to remember to show. It builds its own rows from the kinds actually being
+        /// tracked, so this wires an icon list and nothing else.
+        /// </summary>
+        private static void AddLegend(RectTransform parent, AtlasSpriteIcons icons,
+                                      MinimapPresenter map)
+        {
+            var go = new GameObject("Legend", typeof(RectTransform), typeof(AtlasLegend));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(16f, -16f);
+            rect.sizeDelta = new Vector2(190f, 0f);
+
+            var legend = go.GetComponent<AtlasLegend>();
+            var fields = new SerializedObject(legend);
+
+            SerializedProperty maps = fields.FindProperty("maps");
+            maps.arraySize = 1;
+            maps.GetArrayElementAtIndex(0).objectReferenceValue = map;
+
+            fields.FindProperty("icons").objectReferenceValue = icons;
+
+            // Objective, Discovery, Point - the order the demo registers them, which is
+            // also the order AtlasM1Icons lists their sprites.
+            SerializedProperty ids = fields.FindProperty("iconIds");
+            ids.arraySize = 3;
+            ids.GetArrayElementAtIndex(0).intValue = AtlasM1Icons.Objective;
+            ids.GetArrayElementAtIndex(1).intValue = AtlasM1Icons.Discovery;
+            ids.GetArrayElementAtIndex(2).intValue = AtlasM1Icons.Signal;
+
+            fields.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static Canvas BuildCanvas()

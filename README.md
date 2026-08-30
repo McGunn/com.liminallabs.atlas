@@ -205,11 +205,10 @@ can see, never a blank frame.
 
 ## Not built
 
-A legend UI — `AtlasFilter` is the model behind one and a game's own checkboxes write to
-it, but no prefab ships. A fog *shader*: `AtlasReveal` is the data and it is exact;
-drawing it softly is the presenter's business. A content bridge, for markers from
-`com.liminallabs.content` defs. Marker clustering at extreme zoom, which importance LOD
-mostly makes unnecessary.
+A content bridge, for markers from `com.liminallabs.content` defs. Marker clustering at
+extreme zoom, which importance LOD mostly makes unnecessary. A GPU fog path — the CPU blur
+is cheap enough that this would be for a game revealing several spaces at once, not for a
+game with one.
 
 No Addressables, in any milestone.
 

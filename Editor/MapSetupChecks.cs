@@ -96,6 +96,20 @@ namespace LiminalLabs.Atlas.Editor
                 }
             }
 
+            // A legend whose icon ids do not line up with its kinds is a legend that
+            // confidently labels the wrong things, which is worse than no legend.
+            foreach (AtlasLegend legend in AtlasEditorScene.FindAll<AtlasLegend>())
+            {
+                AtlasLegend captured = legend;
+                if (legend.IconProvider == null && !AtlasEditorScene.HasSerializedIcons(legend))
+                {
+                    report.Warn($"'{legend.name}' has no icon provider",
+                        "Every row will show the missing-sprite placeholder, so the legend " +
+                        "will label kinds correctly and illustrate none of them.",
+                        () => AtlasEditorScene.Select(captured), "Select");
+                }
+            }
+
             if (maps.Length > 0) report.Pass($"{maps.Length} map presenter(s) wired");
         }
 
