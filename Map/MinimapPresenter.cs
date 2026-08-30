@@ -58,6 +58,18 @@ namespace LiminalLabs.Atlas
                  "until then assign a Texture on the space by hand.")]
         [SerializeField] private RawImage background;
 
+        [Header("Fog")]
+        [Tooltip("Draws the space's reveal mask over the map. Needs a Raw Image above the " +
+                 "background and below the markers.")]
+        [SerializeField] private RawImage fog;
+
+        [Tooltip("Colour of the unseen. Alpha is what actually hides the map.")]
+        [SerializeField] private Color fogColor = new Color(0.03f, 0.04f, 0.06f, 0.93f);
+
+        [Tooltip("Seconds between texture rebuilds. The mask itself only changes on " +
+                 "AtlasDiscovery's own timer, so this is a second ceiling, not a poll.")]
+        [SerializeField, Min(0.05f)] private float fogRefreshInterval = 0.25f;
+
         [Header("Viewer")]
         [Tooltip("Drawn at the centre. Rotates to the viewer's facing on a north-up map, " +
                  "and stays pointing up on a viewer-up one.")]
@@ -90,6 +102,11 @@ namespace LiminalLabs.Atlas
         private RectTransform area;
         private Entry[] pool;
         private MapProjection projection;
+
+        private Texture2D fogTexture;
+        private Color32[] fogPixels;
+        private int fogVersion = -1;
+        private float nextFogRefresh;
 
         /// <summary>Where icons come from. Assign in code to use a provider that is not
         /// a sprite array - the seam is the point.</summary>
@@ -340,6 +357,7 @@ namespace LiminalLabs.Atlas
             }
 
             PresentBackground(frame, bounds);
+            PresentFog(frame);
             PresentViewerArrow(viewer, frame);
         }
 
@@ -381,28 +399,125 @@ namespace LiminalLabs.Atlas
             background.texture = image;
 
             // The image covers the space's bounds, so the visible window is the frame
-            // expressed as a fraction of those bounds. uvRect is in 0..1 of the texture,
-            // which is exactly that fraction - no second copy of the framing maths.
-            Vector2 min = space.ToMap(space.WorldBounds.min);
-            Vector2 max = space.ToMap(space.WorldBounds.max);
-            Vector2 size = max - min;
-
-            if (Mathf.Abs(size.x) < AtlasMath.Epsilon || Mathf.Abs(size.y) < AtlasMath.Epsilon)
-            {
-                background.enabled = false;
-                return;
-            }
-
-            Vector2 window = new Vector2(frame.Span / Mathf.Abs(size.x), frame.Span / Mathf.Abs(size.y));
-            Vector2 centreUv = new Vector2((frame.Centre.x - min.x) / size.x,
-                                           (frame.Centre.y - min.y) / size.y);
-
-            background.uvRect = new Rect(centreUv - window * 0.5f, window);
+            // expressed as a fraction of those bounds - which is exactly what a uvRect is.
+            // Shared with the fog, because they are two images over one extent.
+            background.uvRect = BoundsWindow(space, frame);
 
             // Rotated by the same number the markers were, in the same direction. A
             // background that turns the other way is the most disorienting single defect a
             // minimap can have, and it is one sign away at every moment.
             background.rectTransform.localRotation = Quaternion.Euler(0f, 0f, frame.Rotation);
+        }
+
+        /// <summary>
+        /// Draws the reveal mask over the map.
+        ///
+        /// A texture built from the bits rather than a shader, so it works on every render
+        /// pipeline with no material to ship, no keyword to enable and nothing to break
+        /// when a project upgrades URP. Bilinear filtering softens the cell edges for
+        /// free - a game that wants a painterly fog samples <see cref="AtlasReveal"/>
+        /// itself and draws whatever it likes, which is why the data stays exact.
+        ///
+        /// Rebuilt only when the mask's version changes, and at most on an interval. The
+        /// mask is filled in on a timer and not at all while the viewer stands still, so
+        /// in practice this uploads a texture a few times a second while walking and never
+        /// while stopped.
+        /// </summary>
+        private void PresentFog(in AtlasMapFrame frame)
+        {
+            if (fog == null) return;
+
+            AtlasSpace space = registry != null
+                ? registry.Registry.Spaces.GetOrDefault(frame.Space)
+                : null;
+
+            AtlasReveal reveal = space?.Reveal;
+            if (reveal == null)
+            {
+                if (fog.enabled) fog.enabled = false;
+                return;
+            }
+
+            if (!fog.enabled) fog.enabled = true;
+
+            if (reveal.Version != fogVersion && Time.unscaledTime >= nextFogRefresh)
+            {
+                RebuildFogTexture(reveal);
+                fogVersion = reveal.Version;
+                nextFogRefresh = Time.unscaledTime + fogRefreshInterval;
+            }
+
+            if (fogTexture == null) return;
+
+            fog.texture = fogTexture;
+            fog.color = Color.white;
+
+            // The same uv window and the same rotation as the background, because the fog
+            // is indexed against the same bounds. Computing it separately here is how fog
+            // comes to slide against the terrain it is meant to hide.
+            fog.uvRect = BoundsWindow(space, frame);
+            fog.rectTransform.localRotation = Quaternion.Euler(0f, 0f, frame.Rotation);
+        }
+
+        private void RebuildFogTexture(AtlasReveal reveal)
+        {
+            int width = reveal.Width;
+            int height = reveal.Height;
+
+            if (fogTexture == null || fogTexture.width != width || fogTexture.height != height)
+            {
+                if (fogTexture != null) Destroy(fogTexture);
+
+                fogTexture = new Texture2D(width, height, TextureFormat.RGBA32, false, true)
+                {
+                    wrapMode = TextureWrapMode.Clamp,
+                    filterMode = FilterMode.Bilinear,
+                    hideFlags = HideFlags.HideAndDontSave,
+                };
+                fogPixels = new Color32[width * height];
+            }
+
+            var hidden = (Color32)fogColor;
+            var seen = new Color32(hidden.r, hidden.g, hidden.b, 0);
+
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                    fogPixels[row + x] = reveal.IsRevealed(x, y) ? seen : hidden;
+            }
+
+            fogTexture.SetPixels32(fogPixels);
+            fogTexture.Apply(false);
+        }
+
+        private void OnDestroy()
+        {
+            // Created with HideAndDontSave, so nothing else will collect it.
+            if (fogTexture != null) Destroy(fogTexture);
+        }
+
+        /// <summary>
+        /// The visible window as a uv rect over a space's bounds.
+        ///
+        /// Shared by the background and the fog on purpose: they are two images indexed
+        /// against one extent, and two copies of this arithmetic is two chances for them to
+        /// disagree by a fraction that reads as the fog lagging the terrain.
+        /// </summary>
+        private static Rect BoundsWindow(AtlasSpace space, in AtlasMapFrame frame)
+        {
+            Vector2 min = space.ToMap(space.WorldBounds.min);
+            Vector2 max = space.ToMap(space.WorldBounds.max);
+            Vector2 size = max - min;
+
+            if (Mathf.Abs(size.x) < AtlasMath.Epsilon || Mathf.Abs(size.y) < AtlasMath.Epsilon)
+                return new Rect(0f, 0f, 1f, 1f);
+
+            var window = new Vector2(frame.Span / Mathf.Abs(size.x), frame.Span / Mathf.Abs(size.y));
+            var centre = new Vector2((frame.Centre.x - min.x) / size.x,
+                                     (frame.Centre.y - min.y) / size.y);
+
+            return new Rect(centre - window * 0.5f, window);
         }
 
         /// <summary>

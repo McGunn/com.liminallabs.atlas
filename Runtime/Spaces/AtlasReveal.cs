@@ -27,6 +27,19 @@ namespace LiminalLabs.Atlas
         [SerializeField] private int height;
         [SerializeField] private byte[] cells;
 
+        /// <summary>
+        /// Bumped whenever anything is revealed or cleared.
+        ///
+        /// So a renderer can skip rebuilding its texture when nothing changed - which is
+        /// most frames, since the mask is filled in on a timer and not at all while the
+        /// viewer stands still. Comparing a counter is the difference between fog costing
+        /// nothing and fog costing a texture upload every frame.
+        ///
+        /// Not serialised: it is a change signal, not state, and a restored mask should
+        /// look new to whatever is drawing it.
+        /// </summary>
+        [NonSerialized] public int Version;
+
         /// <summary>Cells across the bounds' X.</summary>
         public int Width => width;
 
@@ -56,17 +69,23 @@ namespace LiminalLabs.Atlas
             width = savedWidth;
             height = savedHeight;
             cells = savedCells;
+            Version++;
             return true;
         }
 
         /// <summary>Everything hidden again.</summary>
-        public void Clear() => Array.Clear(cells, 0, cells.Length);
+        public void Clear()
+        {
+            Array.Clear(cells, 0, cells.Length);
+            Version++;
+        }
 
         /// <summary>Everything revealed. For a debug command, and for a game that wants
         /// fog off without removing the mask.</summary>
         public void RevealAll()
         {
             for (int i = 0; i < cells.Length; i++) cells[i] = 0xFF;
+            Version++;
         }
 
         /// <summary>Whether a cell has been seen. Out-of-range reads as revealed, because
@@ -133,6 +152,7 @@ namespace LiminalLabs.Atlas
                 }
             }
 
+            if (revealed > 0) Version++;
             return revealed;
         }
 

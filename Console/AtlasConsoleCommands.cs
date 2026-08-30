@@ -174,6 +174,14 @@ namespace LiminalLabs.Atlas.Console
                 if (space.Id == viewer.Space) detail.Append(ConsoleMarkup.Accent("  ◄ viewer"));
                 if (space.Image == null) detail.Append(ConsoleMarkup.Dim("  no image"));
 
+                Bounds bounds = space.WorldBounds;
+                detail.Append(bounds.size.x > 0.01f && bounds.size.z > 0.01f
+                    ? ConsoleMarkup.Dim($"  {bounds.size.x:0}x{bounds.size.z:0}")
+                    : ConsoleMarkup.Warn("  no bounds"));
+
+                if (space.Reveal != null)
+                    detail.Append(ConsoleMarkup.Dim($"  {space.Reveal.RevealedFraction() * 100f:0}% seen"));
+
                 rows.Add(new KeyValuePair<string, string>(space.Name, detail.ToString()));
             }
 
@@ -243,5 +251,103 @@ namespace LiminalLabs.Atlas.Console
 
         private static KeyValuePair<string, string> Row(string key, string value) =>
             new KeyValuePair<string, string>(key, value);
+
+        [ConsoleCommand("atlas.reveal", "Reveals a space, or all of them. Fog off, without " +
+            "removing the mask.", Category = Category)]
+        public static void Reveal(ConsoleContext context, string spaceName = null)
+        {
+            AtlasRegistry registry = AtlasConsole.Require();
+            int touched = 0;
+
+            for (int i = 0; i < registry.Spaces.All.Count; i++)
+            {
+                AtlasSpace space = registry.Spaces.All[i];
+                if (!string.IsNullOrEmpty(spaceName) &&
+                    !space.Name.Equals(spaceName, System.StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (space.Reveal == null) continue;
+
+                space.Reveal.RevealAll();
+                touched++;
+            }
+
+            if (touched == 0) context.Warn("No space has a reveal mask. Add an AtlasDiscovery.");
+            else context.Success($"Revealed {touched} space(s).");
+        }
+
+        [ConsoleCommand("atlas.fog", "Hides a space again, or all of them.", Category = Category)]
+        public static void Fog(ConsoleContext context, string spaceName = null)
+        {
+            AtlasRegistry registry = AtlasConsole.Require();
+            int touched = 0;
+
+            for (int i = 0; i < registry.Spaces.All.Count; i++)
+            {
+                AtlasSpace space = registry.Spaces.All[i];
+                if (!string.IsNullOrEmpty(spaceName) &&
+                    !space.Name.Equals(spaceName, System.StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (space.Reveal == null) continue;
+
+                space.Reveal.Clear();
+                touched++;
+            }
+
+            if (touched == 0) context.Warn("No space has a reveal mask. Add an AtlasDiscovery.");
+            else context.Success($"Hid {touched} space(s).");
+        }
+
+        /// <summary>
+        /// Every map in the scene, and how it is framed.
+        ///
+        /// The question this answers is the one that cost the most time: a map showing two
+        /// markers is either zoomed wrong, centred wrong, or framing a space with no
+        /// bounds, and all three look identical.
+        /// </summary>
+        [ConsoleCommand("atlas.maps", "Every map presenter, and its framing.", Category = Category)]
+        public static void Maps(ConsoleContext context)
+        {
+            MinimapPresenter[] maps = UnityEngine.Object.FindObjectsByType<MinimapPresenter>(
+                FindObjectsInactive.Include);
+
+            if (maps.Length == 0)
+            {
+                context.Info("No map presenters in the scene.");
+                return;
+            }
+
+            var rows = new List<KeyValuePair<string, string>>();
+
+            foreach (MinimapPresenter map in maps)
+            {
+                AtlasMapFrame frame = map.Projection.LastFrame;
+
+                var detail = new System.Text.StringBuilder();
+                detail.Append(ConsoleMarkup.Dim($"{map.Projection.Centre}"));
+                detail.Append(ConsoleMarkup.Dim($"  {map.Projection.Rotation}"));
+                detail.Append($"  span {frame.Span:0.#}");
+                detail.Append(ConsoleMarkup.Dim($"  zoom {map.Zoom:0.##}"));
+                detail.Append(ConsoleMarkup.Dim($"  {map.VisibleCount}/{map.Capacity} drawn"));
+                if (!map.isActiveAndEnabled) detail.Append(ConsoleMarkup.Dim("  (disabled)"));
+
+                rows.Add(new KeyValuePair<string, string>(map.name, detail.ToString()));
+            }
+
+            context.Heading($"{rows.Count} map(s)");
+            context.Table(rows, 22);
+        }
+
+        [ConsoleCommand("atlas.zoom", "Zooms every map. 1 is the authored framing.",
+            Category = Category)]
+        public static void Zoom(ConsoleContext context, float zoom = 1f)
+        {
+            MinimapPresenter[] maps = UnityEngine.Object.FindObjectsByType<MinimapPresenter>(
+                FindObjectsInactive.Include);
+
+            foreach (MinimapPresenter map in maps) map.Zoom = zoom;
+
+            context.Success($"Zoom set to {zoom:0.##} on {maps.Length} map(s).");
+        }
+
     }
 }

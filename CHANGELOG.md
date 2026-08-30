@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.4.1] — the fog you can see
+
+### Added
+
+- **`MinimapPresenter` draws the reveal mask.** M4 shipped exact discovery data that
+  nothing rendered, which is half a feature: the mask was correct and invisible.
+
+  A texture built from the bits rather than a shader, so it works on every render pipeline
+  with no material to ship, no keyword to enable and nothing to break when a project
+  upgrades URP. Bilinear filtering softens the cell edges for free. A game that wants a
+  painterly fog samples `AtlasReveal` itself — the data stays exact, which was always the
+  point of storing bits.
+
+  Rebuilt only when `AtlasReveal.Version` changes, and at most on an interval. The mask is
+  filled in on a timer and not at all while the viewer stands still, so in practice this
+  uploads a texture a few times a second while walking and never while stopped.
+
+- The M1 sample wires discovery and fog into both maps. Walk and watch the world clear.
+- Console: `atlas.reveal`, `atlas.fog`, `atlas.maps`, `atlas.zoom`. `atlas.maps` answers
+  the question that cost the most time on this package — a map showing two markers is
+  either zoomed wrong, centred wrong, or framing a space with no bounds, and all three
+  look identical from the outside.
+
+### Changed
+
+- The background and the fog share one `BoundsWindow` function. Two copies of that
+  arithmetic is two chances for them to disagree by a fraction, which reads as the fog
+  lagging the terrain it is meant to hide.
+- `AtlasReveal` carries a `Version` counter, bumped on every change and deliberately not
+  serialised — it is a change signal, not state.
+
+
 ## [0.4.0] — M2, M3, M4 and M5
 
 Baking first, because pan and zoom over an empty rectangle is less of a map than a

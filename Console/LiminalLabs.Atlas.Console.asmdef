@@ -3,6 +3,7 @@
     "rootNamespace": "LiminalLabs.Atlas.Console",
     "references": [
         "LiminalLabs.Atlas",
+        "LiminalLabs.Atlas.Map",
         "LiminalLabs.Core.Console"
     ],
     "includePlatforms": [],

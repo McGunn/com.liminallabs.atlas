@@ -1,6 +1,6 @@
 {
   "name": "com.liminallabs.atlas",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "displayName": "Liminal Labs Atlas",
   "description": "Knowing where things are: a compass bar and on-screen indicators from one registration, over a registry that already models map spaces. One solve, several views, each in its own assembly. Namespace LiminalLabs.Atlas. Compass letters and distance labels need a one-time Window > TextMeshPro > Import TMP Essential Resources; everything else works without it.",
   "unity": "6000.0",

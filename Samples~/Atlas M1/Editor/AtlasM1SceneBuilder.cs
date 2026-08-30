@@ -72,6 +72,15 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             spaceFields.FindProperty("boundsCentre").vector3Value = Vector3.zero;
             spaceFields.ApplyModifiedPropertiesWithoutUndo();
 
+            // Discovery, on the same object. The mask is indexed against the bounds above,
+            // which is the whole reason it needs no configuration of its own beyond how far
+            // the viewer can see.
+            var discovery = spaceObject.AddComponent<AtlasDiscovery>();
+            var discoveryFields = new SerializedObject(discovery);
+            discoveryFields.FindProperty("sightRadius").floatValue = 55f;
+            discoveryFields.FindProperty("resolution").intValue = 256;
+            discoveryFields.ApplyModifiedPropertiesWithoutUndo();
+
             GameObject orbiting = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             orbiting.name = "Orbiting Signal";
             orbiting.transform.position = new Vector3(0f, 1f, 45f);
@@ -113,6 +122,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
                 "WASD to move, hold right mouse to look, M for the world map.\n" +
                 "The minimap turns under a fixed arrow; the world map does not turn at all. " +
                 "Same markers, same solve, two framings of one projection.\n" +
+                "The world darkens where you have not been - walk and watch it clear.\n" +
                 "On the world map: scroll to zoom, drag with the left mouse to pan, R to reset.\n" +
                 "Watch a landmark pin to the minimap's circle while it is still sitting in " +
                 "place on the world map: " + minimap.name + " is following you, the world map is not.");
@@ -219,6 +229,31 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             return image;
         }
 
+        /// <summary>
+        /// The fog layer: above the baked image, below the markers.
+        ///
+        /// Above the image because it hides terrain. Below the markers because a quest
+        /// marker the game has told you about should stay visible through fog - hiding
+        /// markers is MapProjection.HideUndiscovered, a separate decision, off by default.
+        /// </summary>
+        private static RawImage AddFog(RectTransform parent)
+        {
+            var go = new GameObject("Fog", typeof(RectTransform), typeof(RawImage));
+            go.transform.SetParent(parent, false);
+
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+
+            var image = go.GetComponent<RawImage>();
+            image.raycastTarget = false;
+            image.enabled = false;   // switched on when the space has a mask
+
+            return image;
+        }
+
         private static Canvas BuildCanvas()
         {
             var canvasObject = new GameObject("Atlas Canvas",
@@ -312,6 +347,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             mapObject.GetComponent<Mask>().showMaskGraphic = true;
 
             RawImage minimapBackground = AddBackground(rect);
+            RawImage minimapFog = AddFog(rect);
 
             var viewerArrow = new GameObject("Viewer", typeof(RectTransform), typeof(Image));
             viewerArrow.transform.SetParent(rect, false);
@@ -336,6 +372,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             serialized.FindProperty("rotation").enumValueIndex = (int)AtlasMapRotation.ViewerUp;
             serialized.FindProperty("viewerArrow").objectReferenceValue = arrowRect;
             serialized.FindProperty("background").objectReferenceValue = minimapBackground;
+            serialized.FindProperty("fog").objectReferenceValue = minimapFog;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             // The arrow is drawn last so markers cannot cover the thing telling you where
@@ -368,6 +405,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             backing.raycastTarget = false;
 
             RawImage worldBackground = AddBackground(rect);
+            RawImage worldFog = AddFog(rect);
 
             var worldMap = mapObject.AddComponent<MinimapPresenter>();
             var serialized = new SerializedObject(worldMap);
@@ -379,6 +417,7 @@ namespace LiminalLabs.Atlas.SampleM1.Editor
             serialized.FindProperty("markerSize").vector2Value = new Vector2(30f, 30f);
             serialized.FindProperty("pinOutsideMarkers").boolValue = false;
             serialized.FindProperty("background").objectReferenceValue = worldBackground;
+            serialized.FindProperty("fog").objectReferenceValue = worldFog;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             return mapObject;
