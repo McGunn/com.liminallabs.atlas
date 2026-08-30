@@ -5,7 +5,8 @@
         "LiminalLabs.Atlas",
         "LiminalLabs.Atlas.Compass",
         "LiminalLabs.Atlas.Screen",
-        "LiminalLabs.Core.Editor"
+        "LiminalLabs.Core.Editor",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [
         "Editor"

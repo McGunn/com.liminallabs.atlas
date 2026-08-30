@@ -5,7 +5,8 @@
         "LiminalLabs.Atlas",
         "LiminalLabs.Atlas.Compass",
         "LiminalLabs.Atlas.Screen",
-        "LiminalLabs.Atlas.SampleM0"
+        "LiminalLabs.Atlas.SampleM0",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [
         "Editor"

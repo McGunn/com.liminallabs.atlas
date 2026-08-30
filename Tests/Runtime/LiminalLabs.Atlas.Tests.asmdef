@@ -6,7 +6,8 @@
         "LiminalLabs.Atlas.Compass",
         "LiminalLabs.Atlas.Screen",
         "UnityEngine.TestRunner",
-        "LiminalLabs.Core"
+        "LiminalLabs.Core",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
