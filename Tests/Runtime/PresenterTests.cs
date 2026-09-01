@@ -373,9 +373,18 @@ namespace LiminalLabs.Atlas.Tests
             float at45 = bar.VisiblePosition(1).x;
             float at90 = bar.VisiblePosition(2).x;
 
+            // BarFieldOfView is the degrees the whole bar spans - the property says so, and
+            // markers beyond half of it slide off the ends. So at 180 the edges sit at +-90,
+            // and 45 degrees is halfway to the right edge of a 400-pixel half-width: 200.
+            //
+            // This test shipped expecting 100 and 200, numbers that only work if the edge is
+            // at 180 degrees - a bar spanning the full circle, which nothing documents and
+            // nothing implements. It contradicted its own comment, which described exactly
+            // the arithmetic the presenter does. The code was right; the expectations were
+            // half scale.
             Assert.AreEqual(0f, centre, 0.5f);
-            Assert.AreEqual(100f, at45, 1f, "45 of a 90 degree half-FOV, across half of 800");
-            Assert.AreEqual(200f, at90, 1f);
+            Assert.AreEqual(200f, at45, 1f, "45 of a 90 degree half-FOV, across half of 800");
+            Assert.AreEqual(400f, at90, 1f, "the half-FOV bearing sits exactly on the edge");
             Assert.AreEqual(at45 - centre, at90 - at45, 1f, "equal bearing steps, equal pixel steps");
         }
 
