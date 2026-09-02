@@ -30,6 +30,9 @@ namespace LiminalLabs.Atlas
         private readonly AtlasSettings settings;
 
         private readonly List<IAtlasTrackable> tracked = new List<IAtlasTrackable>();
+        private readonly Dictionary<IAtlasTrackable, int> indexOf = new Dictionary<IAtlasTrackable, int>();
+        private int holes;
+
         private readonly List<Delegated> delegated = new List<Delegated>();
         private readonly List<int> freeSlots = new List<int>();
 
@@ -50,25 +53,69 @@ namespace LiminalLabs.Atlas
 
         public AtlasSettings Settings => settings;
 
-        /// <summary>Everything registered, tracked or not. For diagnostics.</summary>
-        public IReadOnlyList<IAtlasTrackable> Tracked => tracked;
+        /// <summary>Everything registered, tracked or not, in registration order. For
+        /// diagnostics.</summary>
+        public IReadOnlyList<IAtlasTrackable> Tracked
+        {
+            get
+            {
+                Compact();
+                return tracked;
+            }
+        }
 
         /// <summary>The viewer of the last tick, for diagnostics and for presenters that
         /// need to know where the camera was without asking one.</summary>
         public AtlasViewer LastViewer { get; private set; }
 
         // ---- entry point 2: implement the interface -------------------------
+        //
+        // Registration is a dictionary insert and unregistration leaves a hole that the
+        // next tick closes. The obvious List.Contains / List.Remove pair is a walk of the
+        // list per call, which turns the README's ten thousand units into fifty million
+        // compares to register and fifty million to unload - the frame hitch on a scene
+        // change that nobody traces to a HUD.
 
         public void Register(IAtlasTrackable trackable)
         {
-            if (trackable == null || tracked.Contains(trackable)) return;
+            if (trackable == null || indexOf.ContainsKey(trackable)) return;
+
+            indexOf[trackable] = tracked.Count;
             tracked.Add(trackable);
         }
 
         public void Unregister(IAtlasTrackable trackable)
         {
-            if (trackable == null) return;
-            tracked.Remove(trackable);
+            if (trackable == null || !indexOf.TryGetValue(trackable, out int index)) return;
+
+            indexOf.Remove(trackable);
+            tracked[index] = null;
+            holes++;
+        }
+
+        /// <summary>Closes the holes unregistration left, keeping registration order - which
+        /// the priority tie-break depends on, so markers of equal priority never trade
+        /// places because a third one left.</summary>
+        private void Compact()
+        {
+            if (holes == 0) return;
+
+            int write = 0;
+            for (int read = 0; read < tracked.Count; read++)
+            {
+                IAtlasTrackable entry = tracked[read];
+                if (entry == null) continue;
+
+                if (write != read)
+                {
+                    tracked[write] = entry;
+                    indexOf[entry] = write;
+                }
+                write++;
+            }
+
+            tracked.RemoveRange(write, tracked.Count - write);
+            holes = 0;
         }
 
         // ---- entry point 3: track something with no GameObject --------------
@@ -99,7 +146,7 @@ namespace LiminalLabs.Atlas
             Delegated slot = delegated[index];
             slot.Reset(position, marker, space);
 
-            tracked.Add(slot);
+            Register(slot);
             return new AtlasHandle(index, slot.Generation);
         }
 
@@ -118,7 +165,7 @@ namespace LiminalLabs.Atlas
             Delegated slot = delegated[handle.Index];
             if (slot.Generation != handle.Generation || !slot.InUse) return false;
 
-            tracked.Remove(slot);
+            Unregister(slot);
             slot.Retire();
             freeSlots.Add(handle.Index);
             return true;
@@ -190,8 +237,8 @@ namespace LiminalLabs.Atlas
         ///
         /// Allocates nothing after warm-up, and the whole shape of this method is that
         /// requirement: reused lists, indexed loops rather than <c>foreach</c> over
-        /// interfaces, and a hand-written sort. A HUD that allocates once per marker per
-        /// frame is a HUD that shows up in someone's GC profile and gets deleted.
+        /// interfaces, and a hand-written selection. A HUD that allocates once per marker
+        /// per frame is a HUD that shows up in someone's GC profile and gets deleted.
         /// </summary>
         public void Tick(in AtlasViewer viewer)
         {
@@ -208,11 +255,12 @@ namespace LiminalLabs.Atlas
         /// The ordering of the three passes is the whole performance story.
         ///
         /// <b>Cull, then rank, then solve.</b> Distance culling is a squared compare and
-        /// runs over everything. Ranking is a sort over what survives. Only the top slice
-        /// gets the square roots, the bearings and the viewport transforms - so the frame
-        /// costs what is <i>drawn</i> rather than what is <i>tracked</i>, which is the
-        /// difference between a strategy game's ten thousand units being free and being
-        /// the frame.
+        /// runs over everything. Ranking keeps only the top slice - the largest view's
+        /// limit times the slack - as the survivors stream past, so a crowd of ten
+        /// thousand costs ten thousand compares against the slice's floor and a handful
+        /// of inserts, not a sort of ten thousand. Only that slice gets the square roots,
+        /// the bearings and the viewport transforms - so the frame costs what is
+        /// <i>drawn</i> rather than what is <i>tracked</i>.
         ///
         /// Priority can be ranked before solving because it lives on the marker and owes
         /// nothing to the viewer. That is the only reason this ordering is available, and
@@ -222,6 +270,13 @@ namespace LiminalLabs.Atlas
         {
             candidates.Clear();
             ranked.Clear();
+            Compact();
+
+            // The slice worth solving. Slack above the largest view's limit because the
+            // projections filter further - by space, by AtlasFilter, by fade - so taking
+            // exactly the limit here would leave a view short of markers it would have
+            // drawn. Four is generous for a HUD and still bounded.
+            int wanted = LargestLimit() * Mathf.Max(1, settings.CandidateSlack);
 
             for (int i = 0; i < tracked.Count; i++)
             {
@@ -244,23 +299,14 @@ namespace LiminalLabs.Atlas
                     if (offset.sqrMagnitude > maxDistance * maxDistance) continue;
                 }
 
-                ranked.Add(new Ranked(target, marker, position));
+                Offer(new Ranked(target, marker, position), wanted);
             }
-
-            SortByPriority(ranked);
-
-            // The slice worth solving. Slack above the largest view's limit because the
-            // projections filter further - by space, by AtlasFilter, by fade - so taking
-            // exactly the limit here would leave a view short of markers it would have
-            // drawn. Four is generous for a HUD and still bounded.
-            int wanted = LargestLimit() * Mathf.Max(1, settings.CandidateSlack);
-            int count = Mathf.Min(ranked.Count, wanted);
 
             if (Occlusion != null) Occlusion.Tick(viewer, tracked);
 
             float band = Mathf.Max(0f, settings.ElevationBand);
 
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < ranked.Count; i++)
             {
                 Ranked entry = ranked[i];
                 Vector3 position = entry.Position;
@@ -288,6 +334,30 @@ namespace LiminalLabs.Atlas
             }
         }
 
+        /// <summary>
+        /// Keeps the <paramref name="capacity"/> highest-priority survivors, in priority
+        /// order and registration order within a priority - the same answer a stable
+        /// descending sort truncated to the capacity would give, without sorting everything
+        /// that will not be drawn.
+        ///
+        /// Hand-written insertion for the same two reasons the old sort was: it allocates
+        /// nothing, and it is stable, so markers of equal priority keep their registration
+        /// order instead of swapping places between frames and making the bar shimmer.
+        /// </summary>
+        private void Offer(in Ranked entry, int capacity)
+        {
+            // Full, and no better than the worst kept: the common case in a crowd, and one
+            // compare. Equal loses to what is already there, which is registration order.
+            if (ranked.Count >= capacity && entry.Marker.Priority <= ranked[ranked.Count - 1].Marker.Priority)
+                return;
+
+            int at = ranked.Count;
+            while (at > 0 && ranked[at - 1].Marker.Priority < entry.Marker.Priority) at--;
+
+            ranked.Insert(at, entry);
+            if (ranked.Count > capacity) ranked.RemoveAt(ranked.Count - 1);
+        }
+
         private void Solve(in AtlasViewer viewer)
         {
             for (int i = 0; i < outputs.Count; i++)
@@ -297,7 +367,7 @@ namespace LiminalLabs.Atlas
                 output.Solves.Clear();
                 output.Projection.Solve(viewer, Spaces, candidates, output.Solves);
 
-                // Already ranked: candidates were sorted before solving and projections
+                // Already ranked: candidates were ordered before solving and projections
                 // preserve order, so the truncation below keeps the highest priorities
                 // without a second sort.
                 int limit = output.MaxMarkers > 0 ? output.MaxMarkers : settings.MaxMarkers;
@@ -330,32 +400,6 @@ namespace LiminalLabs.Atlas
                 Target = target;
                 Marker = marker;
                 Position = position;
-            }
-        }
-
-        /// <summary>
-        /// Insertion sort, descending by priority.
-        ///
-        /// Hand-written for two reasons. It allocates nothing - <c>List.Sort</c> with a
-        /// comparison can allocate a comparer wrapper on some runtimes, which is the one
-        /// thing test 15 forbids. And it is stable, so markers of equal priority keep
-        /// their registration order instead of swapping places between frames and making
-        /// the bar shimmer. At the tens of markers a HUD shows, it is also simply faster.
-        /// </summary>
-        private static void SortByPriority(List<Ranked> entries)
-        {
-            for (int i = 1; i < entries.Count; i++)
-            {
-                Ranked current = entries[i];
-                int j = i - 1;
-
-                while (j >= 0 && entries[j].Marker.Priority < current.Marker.Priority)
-                {
-                    entries[j + 1] = entries[j];
-                    j--;
-                }
-
-                entries[j + 1] = current;
             }
         }
 

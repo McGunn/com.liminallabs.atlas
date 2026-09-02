@@ -1,6 +1,6 @@
 {
   "name": "com.liminallabs.atlas",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "displayName": "Liminal Labs Atlas",
   "description": "Knowing where things are. Register an object once and it appears on the compass bar at the correct bearing, as an on-screen indicator, on the minimap and on the world map - from one solve, so the views cannot disagree about what is behind you. Maps are planes with world transforms rather than textures, which is what makes interiors, baking, discovery and zoom LOD the same idea with different numbers. Pure solve, replaceable presenters, no singleton, no Addressables, no inheritance in the public API. Compass letters and distance labels need a one-time Window > TextMeshPro > Import TMP Essential Resources; everything else works without it. Namespace LiminalLabs.Atlas.",
   "unity": "6000.0",

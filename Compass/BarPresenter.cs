@@ -98,6 +98,7 @@ namespace LiminalLabs.Atlas
 
         private RectTransform bar;
         private Entry[] pool;
+        private int[] lastMetres;
         private Direction[] directions;
         private TMP_FontAsset font;
 
@@ -254,6 +255,7 @@ namespace LiminalLabs.Atlas
         private void BuildPool()
         {
             pool = new Entry[Mathf.Max(1, poolSize)];
+            lastMetres = new int[pool.Length];
 
             for (int i = 0; i < pool.Length; i++)
             {
@@ -273,6 +275,7 @@ namespace LiminalLabs.Atlas
 
                 go.SetActive(false);
                 pool[i] = new Entry(rect, image, label);
+                lastMetres[i] = int.MinValue;
             }
         }
 
@@ -381,7 +384,8 @@ namespace LiminalLabs.Atlas
                 // keeps its slot and is clipped by the mask, so it slides rather than pops.
                 if (Mathf.Abs(x) > edge) continue;
 
-                Entry entry = pool[shown++];
+                int slot = shown++;
+                Entry entry = pool[slot];
                 entry.Rect.anchoredPosition = new Vector2(x, markerY);
 
                 float fade = Mathf.Clamp01(fadeCurve.Evaluate(Mathf.Clamp01(solve.Fade)));
@@ -417,7 +421,14 @@ namespace LiminalLabs.Atlas
 
                 if (entry.Label != null)
                 {
-                    entry.Label.text = string.Format(distanceFormat, Mathf.RoundToInt(solve.Distance));
+                    // Reformatted when the metres change, which while walking is about once
+                    // a metre - rather than a string per labelled marker per frame.
+                    int metres = Mathf.RoundToInt(solve.Distance);
+                    if (lastMetres[slot] != metres)
+                    {
+                        lastMetres[slot] = metres;
+                        entry.Label.text = string.Format(distanceFormat, metres);
+                    }
                     entry.Label.color = tint;
                 }
 

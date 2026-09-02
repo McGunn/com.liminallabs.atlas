@@ -107,6 +107,7 @@ namespace LiminalLabs.Atlas
 
         private RectTransform area;
         private Entry[] pool;
+        private int[] lastMetres;
         private Vector2[] placed;
         private TMP_FontAsset font;
 
@@ -194,6 +195,7 @@ namespace LiminalLabs.Atlas
         private void BuildPool()
         {
             pool = new Entry[Mathf.Max(1, poolSize)];
+            lastMetres = new int[pool.Length];
 
             for (int i = 0; i < pool.Length; i++)
             {
@@ -241,6 +243,7 @@ namespace LiminalLabs.Atlas
                 chevronObject.SetActive(false);
 
                 pool[i] = new Entry(rect, image, arrowRect, arrowImage, label, chevronRect, chevronImage);
+                lastMetres[i] = int.MinValue;
             }
         }
 
@@ -347,7 +350,8 @@ namespace LiminalLabs.Atlas
                 if (hideWhenOffScreen && clamped) continue;
                 if (hideWhenBehind && solve.Behind) continue;
 
-                Entry entry = pool[shown++];
+                int slot = shown++;
+                Entry entry = pool[slot];
 
                 float fade = Mathf.Clamp01(fadeCurve.Evaluate(Mathf.Clamp01(solve.Fade)));
                 entry.Rect.localScale = Vector3.one * AtlasMath.DistanceScale(fade, minScale, maxScale);
@@ -433,7 +437,14 @@ namespace LiminalLabs.Atlas
 
                 if (entry.Label != null)
                 {
-                    entry.Label.text = string.Format(distanceFormat, Mathf.RoundToInt(solve.Distance));
+                    // Reformatted when the metres change, not once per labelled indicator
+                    // per frame.
+                    int metres = Mathf.RoundToInt(solve.Distance);
+                    if (lastMetres[slot] != metres)
+                    {
+                        lastMetres[slot] = metres;
+                        entry.Label.text = string.Format(distanceFormat, metres);
+                    }
                     entry.Label.color = tint;
                 }
 

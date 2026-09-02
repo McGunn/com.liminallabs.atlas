@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.7.0] — ten thousand units, honestly
+
+### Changed
+
+- **Registration and unregistration are dictionary work.** `Register` checked
+  `List.Contains` and `Unregister` called `List.Remove` - a walk of every tracked thing per
+  call, which made the README's ten thousand units fifty million compares to register and
+  fifty million to unload: the hitch on a scene change that nobody traces to a HUD.
+  Unregistering now leaves a hole that the next tick closes, keeping registration order,
+  which the priority tie-break depends on. `Tracked` compacts before it answers, so it never
+  shows a hole.
+- **The ranking keeps only the slice that will be solved.** Every distance survivor was
+  insertion-sorted - quadratic, over everything in range - although only the largest view's
+  limit times the slack is ever solved. Survivors now stream past a bounded slice: one
+  compare against its floor for most of a crowd, an insert for the few that beat it. The
+  answer is what a stable sort and a truncation gave, pinned by a test against exactly that.
+- **A marker's space id is hashed once**, not twice per marker per frame from the name.
+- **Physics occlusion prunes in linear time.** The stale-entry sweep walked the tracked list
+  once per cached entry; it puts the list in a set first.
+- **The compass and screen labels reformat only when the metres change.** Every visible
+  labelled marker allocated a string per frame.
+- **The legend fingerprints the tracked kinds four times a second** rather than every frame;
+  `followInterval` sets it.
+
+### Tests
+
+- 105 (was 101): the slice equals a stable sort truncated, holes close and order survives,
+  a ten-thousand crowd registers and unregisters clean, delegate tracking shares the index.
+
 ## [0.6.1] — the map answers clicks
 
 ### Added

@@ -56,6 +56,9 @@ namespace LiminalLabs.Atlas
         private readonly Dictionary<IAtlasTrackable, bool> occluded =
             new Dictionary<IAtlasTrackable, bool>();
 
+        private readonly HashSet<IAtlasTrackable> alive = new HashSet<IAtlasTrackable>();
+        private readonly List<IAtlasTrackable> stale = new List<IAtlasTrackable>();
+
         private int cursor;
 
         /// <summary>How many markers currently have a cached answer. For diagnostics, and
@@ -140,25 +143,27 @@ namespace LiminalLabs.Atlas
         ///
         /// Not every frame: it is a full walk of the dictionary, and a stale entry costs
         /// nothing but a little memory until then. Tied to the cursor wrapping, so it runs
-        /// once per full pass of the tracked list however long that list is.
+        /// once per full pass of the tracked list however long that list is. The tracked
+        /// list goes into a set first, so the walk is linear - a walk of the list per
+        /// cached entry was quadratic, and at a strategy game's crowd sizes that was a
+        /// hitch once per pass.
         /// </summary>
         private void Prune(IReadOnlyList<IAtlasTrackable> targets)
         {
             if (cursor < targets.Count || occluded.Count <= targets.Count) return;
 
+            alive.Clear();
+            for (int i = 0; i < targets.Count; i++)
+                if (targets[i] != null) alive.Add(targets[i]);
+
             stale.Clear();
             foreach (KeyValuePair<IAtlasTrackable, bool> entry in occluded)
-            {
-                bool found = false;
-                for (int i = 0; i < targets.Count && !found; i++)
-                    found = ReferenceEquals(targets[i], entry.Key);
-
-                if (!found) stale.Add(entry.Key);
-            }
+                if (!alive.Contains(entry.Key)) stale.Add(entry.Key);
 
             for (int i = 0; i < stale.Count; i++) occluded.Remove(stale[i]);
-        }
 
-        private readonly List<IAtlasTrackable> stale = new List<IAtlasTrackable>();
+            alive.Clear();
+            stale.Clear();
+        }
     }
 }

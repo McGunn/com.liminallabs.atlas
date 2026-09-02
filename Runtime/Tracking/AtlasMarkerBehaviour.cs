@@ -77,15 +77,25 @@ namespace LiminalLabs.Atlas
         private AtlasMarker cachedMarker;
         private bool markerCached;
 
-        /// <summary>Rebuilds the cached marker. Call after changing a field in code.</summary>
+        private AtlasSpaceId cachedSpace;
+        private bool spaceCached;
+
+        /// <summary>Rebuilds the cached marker and space id. Call after changing a field in code.</summary>
         public void Rebuild()
         {
             cachedMarker = Build();
             markerCached = true;
+
+            cachedSpace = string.IsNullOrEmpty(spaceName) ? AtlasSpaceId.Default : new AtlasSpaceId(spaceName);
+            spaceCached = true;
         }
 
 #if UNITY_EDITOR
-        private void OnValidate() => markerCached = false;
+        private void OnValidate()
+        {
+            markerCached = false;
+            spaceCached = false;
+        }
 #endif
 
         private AtlasMarker Build() => new AtlasMarker
@@ -99,8 +109,19 @@ namespace LiminalLabs.Atlas
             Tint = tint,
         };
 
-        public AtlasSpaceId Space =>
-            string.IsNullOrEmpty(spaceName) ? AtlasSpaceId.Default : new AtlasSpaceId(spaceName);
+        /// <summary>
+        /// The space this belongs to. Hashed from the name once and kept: the registry asks
+        /// twice per marker per frame, and hashing a string twice per marker per frame is
+        /// how a name field turns into a per-frame cost that scales with the crowd.
+        /// </summary>
+        public AtlasSpaceId Space
+        {
+            get
+            {
+                if (!spaceCached) Rebuild();
+                return cachedSpace;
+            }
+        }
 
         public bool IsTracked
         {

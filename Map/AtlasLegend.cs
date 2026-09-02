@@ -40,6 +40,10 @@ namespace LiminalLabs.Atlas
         [Tooltip("Rebuild when the set of kinds in use changes. Off for a fixed legend.")]
         [SerializeField] private bool followTrackedKinds = true;
 
+        [Tooltip("Seconds between checks of which kinds are in use. A quarter second is " +
+                 "invisible; every frame is a walk of every tracked marker.")]
+        [SerializeField, Min(0.05f)] private float followInterval = 0.25f;
+
         [Header("Icons")]
         [SerializeField] private AtlasSpriteIcons icons;
 
@@ -62,6 +66,7 @@ namespace LiminalLabs.Atlas
         private TMP_FontAsset font;
         private bool fontResolved;
         private int lastKindSignature = -1;
+        private float nextFollowCheck;
 
         /// <summary>Where icons come from. Assign in code to share a provider that is not
         /// a sprite array.</summary>
@@ -86,6 +91,9 @@ namespace LiminalLabs.Atlas
         private void Update()
         {
             if (!followTrackedKinds || registry == null) return;
+            if (Time.unscaledTime < nextFollowCheck) return;
+
+            nextFollowCheck = Time.unscaledTime + followInterval;
 
             int signature = KindSignature();
             if (signature != lastKindSignature) Rebuild();
@@ -94,9 +102,10 @@ namespace LiminalLabs.Atlas
         /// <summary>
         /// A cheap fingerprint of which kinds are being tracked.
         ///
-        /// A bitmask rather than a list comparison: kinds are few, the check runs every
-        /// frame, and an int compare is what keeps "rebuild when the world changes" from
-        /// being more expensive than the rebuild.
+        /// A bitmask rather than a list comparison: kinds are few, and an int compare is
+        /// what keeps "rebuild when the world changes" from being more expensive than the
+        /// rebuild. It is still a walk of every tracked marker, which is why it runs on
+        /// <see cref="followInterval"/> rather than every frame.
         /// </summary>
         private int KindSignature()
         {
